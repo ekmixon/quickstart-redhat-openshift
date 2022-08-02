@@ -225,14 +225,13 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
             self.port or "80",
         )
 
-        conn = self.ConnectionCls(
+        return self.ConnectionCls(
             host=self.host,
             port=self.port,
             timeout=self.timeout.connect_timeout,
             strict=self.strict,
             **self.conn_kw
         )
-        return conn
 
     def _get_conn(self, timeout=None):
         """
@@ -259,8 +258,6 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
                     self,
                     "Pool reached maximum size and no more connections are allowed.",
                 )
-            pass  # Oh well, we'll create a new connection then
-
         # If this is a persistent connection, check if it got disconnected
         if conn and is_connection_dropped(conn):
             log.debug("Resetting dropped connection: %s", self.host)
@@ -328,15 +325,17 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
 
         if isinstance(err, SocketTimeout):
             raise ReadTimeoutError(
-                self, url, "Read timed out. (read timeout=%s)" % timeout_value
+                self, url, f"Read timed out. (read timeout={timeout_value})"
             )
+
 
         # See the above comment about EAGAIN in Python 3. In Python 2 we have
         # to specifically catch it and throw the timeout error
         if hasattr(err, "errno") and err.errno in _blocking_errnos:
             raise ReadTimeoutError(
-                self, url, "Read timed out. (read timeout=%s)" % timeout_value
+                self, url, f"Read timed out. (read timeout={timeout_value})"
             )
+
 
         # Catch possible read timeouts thrown as SSL errors. If not the
         # case, rethrow the original. We need to do this because of:
@@ -345,7 +344,7 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
             err
         ):  # Python < 2.7.4
             raise ReadTimeoutError(
-                self, url, "Read timed out. (read timeout=%s)" % timeout_value
+                self, url, f"Read timed out. (read timeout={timeout_value})"
             )
 
     def _make_request(
@@ -398,8 +397,9 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
             # timeouts, check for a zero timeout before making the request.
             if read_timeout == 0:
                 raise ReadTimeoutError(
-                    self, url, "Read timed out. (read timeout=%s)" % read_timeout
+                    self, url, f"Read timed out. (read timeout={read_timeout})"
                 )
+
             if read_timeout is Timeout.DEFAULT_TIMEOUT:
                 conn.sock.settimeout(socket.getdefaulttimeout())
             else:  # None or a value
@@ -463,8 +463,7 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
 
         try:
             while True:
-                conn = old_pool.get(block=False)
-                if conn:
+                if conn := old_pool.get(block=False):
                     conn.close()
 
         except queue.Empty:
@@ -676,7 +675,7 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
             # the response doesn't need to know about the connection. Otherwise
             # it will also try to release it and we'll have a double-release
             # mess.
-            response_conn = conn if not release_conn else None
+            response_conn = None if release_conn else conn
 
             # Pass method to Response for length checking
             response_kw["request_method"] = method

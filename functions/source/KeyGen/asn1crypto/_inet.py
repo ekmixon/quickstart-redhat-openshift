@@ -22,7 +22,7 @@ def inet_ntop(address_family, packed_ip):
         A unicode string of the IP address
     """
 
-    if address_family not in set([socket.AF_INET, socket.AF_INET6]):
+    if address_family not in {socket.AF_INET, socket.AF_INET6}:
         raise ValueError(unwrap(
             '''
             address_family must be socket.AF_INET (%s) or socket.AF_INET6 (%s),
@@ -95,7 +95,7 @@ def inet_pton(address_family, ip_string):
         A byte string of the network form of the IP address
     """
 
-    if address_family not in set([socket.AF_INET, socket.AF_INET6]):
+    if address_family not in {socket.AF_INET, socket.AF_INET6}:
         raise ValueError(unwrap(
             '''
             address_family must be socket.AF_INET (%s) or socket.AF_INET6 (%s),

@@ -185,7 +185,7 @@ class RevokedCertificate(Sequence):
 
         for extension in self['crl_entry_extensions']:
             name = extension['extn_id'].native
-            attribute_name = '_%s_value' % name
+            attribute_name = f'_{name}_value'
             if hasattr(self, attribute_name):
                 setattr(self, attribute_name, extension['extn_value'].parsed)
             if extension['critical'].native:
@@ -315,7 +315,7 @@ class CertificateList(Sequence):
 
         for extension in self['tbs_cert_list']['crl_extensions']:
             name = extension['extn_id'].native
-            attribute_name = '_%s_value' % name
+            attribute_name = f'_{name}_value'
             if hasattr(self, attribute_name):
                 setattr(self, attribute_name, extension['extn_value'].parsed)
             if extension['critical'].native:
@@ -452,10 +452,11 @@ class CertificateList(Sequence):
             identifier extension
         """
 
-        if not self.authority_key_identifier_value:
-            return None
-
-        return self.authority_key_identifier_value['key_identifier'].native
+        return (
+            self.authority_key_identifier_value['key_identifier'].native
+            if self.authority_key_identifier_value
+            else None
+        )
 
     @property
     def issuer_cert_urls(self):
@@ -475,7 +476,7 @@ class CertificateList(Sequence):
                         if location.name != 'uniform_resource_identifier':
                             continue
                         url = location.native
-                        if url.lower()[0:7] == 'http://':
+                        if url.lower()[:7] == 'http://':
                             self._issuer_cert_urls.append(url)
         return self._issuer_cert_urls
 
@@ -498,9 +499,11 @@ class CertificateList(Sequence):
                     if distribution_point_name.name == 'name_relative_to_crl_issuer':
                         continue
                     # This library is currently only concerned with HTTP-based CRLs
-                    for general_name in distribution_point_name.chosen:
-                        if general_name.name == 'uniform_resource_identifier':
-                            self._delta_crl_distribution_points.append(distribution_point)
+                    self._delta_crl_distribution_points.extend(
+                        distribution_point
+                        for general_name in distribution_point_name.chosen
+                        if general_name.name == 'uniform_resource_identifier'
+                    )
 
         return self._delta_crl_distribution_points
 

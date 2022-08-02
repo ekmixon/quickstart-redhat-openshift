@@ -97,11 +97,9 @@ def armor(type_name, der_bytes, headers=None):
         output.write(b'\n')
     b64_bytes = base64.b64encode(der_bytes)
     b64_len = len(b64_bytes)
-    i = 0
-    while i < b64_len:
+    for i in range(0, b64_len, 64):
         output.write(b64_bytes[i:i + 64])
         output.write(b'\n')
-        i += 64
     output.write(b'-----END ')
     output.write(type_name)
     output.write(b'-----\n')
@@ -154,7 +152,7 @@ def _unarmor(pem_bytes):
             type_name_match = re.match(b'^(?:---- |-----)BEGIN ([A-Z0-9 ]+)(?: ----|-----)', line)
             if not type_name_match:
                 continue
-            object_type = type_name_match.group(1).decode('ascii')
+            object_type = type_name_match[1].decode('ascii')
 
             found_start = True
             state = 'headers'
@@ -170,7 +168,7 @@ def _unarmor(pem_bytes):
                 continue
 
         if state == 'body':
-            if line[0:5] in (b'-----', b'---- '):
+            if line[:5] in (b'-----', b'---- '):
                 der_bytes = base64.b64decode(base64_data)
 
                 yield (object_type, headers, der_bytes)
@@ -216,7 +214,4 @@ def unarmor(pem_bytes, multiple=False):
 
     generator = _unarmor(pem_bytes)
 
-    if not multiple:
-        return next(generator)
-
-    return generator
+    return generator if multiple else next(generator)

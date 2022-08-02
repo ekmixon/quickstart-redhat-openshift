@@ -4,7 +4,7 @@ from .wait import NoWayToWaitForSocketError, wait_for_read
 from ..contrib import _appengine_environ
 
 
-def is_connection_dropped(conn):  # Platform-specific
+def is_connection_dropped(conn):    # Platform-specific
     """
     Returns True if the connection is dropped and should be closed.
 
@@ -15,7 +15,7 @@ def is_connection_dropped(conn):  # Platform-specific
     let the platform handle connection recycling transparently for us.
     """
     sock = getattr(conn, "sock", False)
-    if sock is False:  # Platform-specific: AppEngine
+    if not sock:  # Platform-specific: AppEngine
         return False
     if sock is None:  # Connection already closed (such as by httplib).
         return True
@@ -99,10 +99,7 @@ def allowed_gai_family():
     getaddrinfo, where family=socket.AF_UNSPEC is the default and
     will perform a DNS search for both IPv6 and IPv4 records."""
 
-    family = socket.AF_INET
-    if HAS_IPV6:
-        family = socket.AF_UNSPEC
-    return family
+    return socket.AF_UNSPEC if HAS_IPV6 else socket.AF_INET
 
 
 def _has_ipv6(host):

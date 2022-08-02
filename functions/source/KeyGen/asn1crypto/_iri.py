@@ -57,10 +57,9 @@ def iri_to_uri(value):
     # Python 2.6 doesn't split properly is the URL doesn't start with http:// or https://
     if sys.version_info < (2, 7) and not value.startswith('http://') and not value.startswith('https://'):
         real_prefix = None
-        prefix_match = re.match('^[^:]*://', value)
-        if prefix_match:
-            real_prefix = prefix_match.group(0)
-            value = 'http://' + value[len(real_prefix):]
+        if prefix_match := re.match('^[^:]*://', value):
+            real_prefix = prefix_match[0]
+            value = f'http://{value[len(real_prefix):]}'
         parsed = urlsplit(value)
         if real_prefix:
             value = real_prefix + value[7:]
@@ -152,12 +151,12 @@ def uri_to_iri(value):
     if username is not None:
         netloc += username
         if password:
-            netloc += ':' + password
+            netloc += f':{password}'
         netloc += '@'
     if hostname is not None:
         netloc += hostname
     if port is not None:
-        netloc += ':' + str_cls(port)
+        netloc += f':{str_cls(port)}'
 
     path = _urlunquote(parsed.path, remap=['/'], preserve=True)
     query = _urlunquote(parsed.query, remap=['&', '='], preserve=True)
@@ -231,7 +230,7 @@ def _urlquote(string, safe=''):
         output = output.encode('ascii')
 
     # Restore the existing quoted values that we extracted
-    if len(escapes) > 0:
+    if escapes:
         def _return_escape(_):
             return escapes.pop(0)
         output = re.sub(b'%00', _return_escape, output)

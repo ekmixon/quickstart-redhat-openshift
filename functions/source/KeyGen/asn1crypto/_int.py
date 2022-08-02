@@ -133,10 +133,7 @@ except (EnvironmentError, ImportError):
         # If d == 1, this means that ud is a inverse.
 
         assert d == 1
-        if ud > 0:
-            return ud
-        else:
-            return ud + p
+        return ud if ud > 0 else ud + p
 
 
 def fill_width(bytes_, width):

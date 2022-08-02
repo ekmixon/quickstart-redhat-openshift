@@ -220,12 +220,12 @@ class Asn1Value(object):
         """
 
         if not isinstance(encoded_data, byte_cls):
-            raise TypeError('encoded_data must be a byte string, not %s' % type_name(encoded_data))
+            raise TypeError(
+                f'encoded_data must be a byte string, not {type_name(encoded_data)}'
+            )
 
-        spec = None
-        if cls.tag is not None:
-            spec = cls
 
+        spec = cls if cls.tag is not None else None
         value, _ = _parse_build(encoded_data, spec=spec, spec_params=kwargs, strict=strict)
         return value
 
@@ -348,14 +348,13 @@ class Asn1Value(object):
                             ''',
                             repr(invalid_class)
                         ))
-                    if tag is not None:
-                        if not isinstance(tag, int_types):
-                            raise TypeError(unwrap(
-                                '''
+                    if tag is not None and not isinstance(tag, int_types):
+                        raise TypeError(unwrap(
+                            '''
                                 explicit tag must be an integer, not %s
                                 ''',
-                                type_name(tag)
-                            ))
+                            type_name(tag)
+                        ))
                     if self.explicit is None:
                         self.explicit = ((class_, tag), )
                     else:
@@ -371,14 +370,13 @@ class Asn1Value(object):
                         ''',
                         repr(class_)
                     ))
-                if tag is not None:
-                    if not isinstance(tag, int_types):
-                        raise TypeError(unwrap(
-                            '''
+                if tag is not None and not isinstance(tag, int_types):
+                    raise TypeError(unwrap(
+                        '''
                             implicit tag must be an integer, not %s
                             ''',
-                            type_name(tag)
-                        ))
+                        type_name(tag)
+                    ))
                 self.class_ = CLASS_NAME_TO_NUM_MAP[class_]
                 self.tag = tag
                 self.implicit = True
@@ -420,10 +418,7 @@ class Asn1Value(object):
             A unicode string
         """
 
-        if _PY2:
-            return self.__bytes__()
-        else:
-            return self.__unicode__()
+        return self.__bytes__() if _PY2 else self.__unicode__()
 
     def __repr__(self):
         """
@@ -432,9 +427,9 @@ class Asn1Value(object):
         """
 
         if _PY2:
-            return '<%s %s b%s>' % (type_name(self), id(self), repr(self.dump()))
+            return f'<{type_name(self)} {id(self)} b{repr(self.dump())}>'
         else:
-            return '<%s %s %s>' % (type_name(self), id(self), repr(self.dump()))
+            return f'<{type_name(self)} {id(self)} {repr(self.dump())}>'
 
     def __bytes__(self):
         """
@@ -583,11 +578,10 @@ class Asn1Value(object):
             self.parsed.debug(nest_level + 2)
         elif hasattr(self, 'chosen'):
             self.chosen.debug(nest_level + 2)
+        elif _PY2 and isinstance(self.native, byte_cls):
+            print(f'{prefix}    Native: b{repr(self.native)}')
         else:
-            if _PY2 and isinstance(self.native, byte_cls):
-                print('%s    Native: b%s' % (prefix, repr(self.native)))
-            else:
-                print('%s    Native: %s' % (prefix, self.native))
+            print(f'{prefix}    Native: {self.native}')
 
     def dump(self, force=False):
         """
@@ -641,9 +635,7 @@ class ValueMap():
         cls = self.__class__
         if cls._map is None or cls._reverse_map is not None:
             return
-        cls._reverse_map = {}
-        for key, value in cls._map.items():
-            cls._reverse_map[value] = key
+        cls._reverse_map = {value: key for key, value in cls._map.items()}
 
 
 class Castable(object):
@@ -725,10 +717,7 @@ class Constructable(object):
             else:
                 output += sub_value._merge_chunks()
 
-        if output is None:
-            return self._as_chunk()
-
-        return output
+        return self._as_chunk() if output is None else output
 
     def _as_chunk(self):
         """
@@ -1016,7 +1005,10 @@ class Choice(Asn1Value):
         """
 
         if not isinstance(encoded_data, byte_cls):
-            raise TypeError('encoded_data must be a byte string, not %s' % type_name(encoded_data))
+            raise TypeError(
+                f'encoded_data must be a byte string, not {type_name(encoded_data)}'
+            )
+
 
         value, _ = _parse_build(encoded_data, spec=cls, spec_params=kwargs, strict=strict)
         return value
@@ -1110,10 +1102,12 @@ class Choice(Asn1Value):
                 self._choice = self._name_map[name]
                 _, spec, params = self._alternatives[self._choice]
 
-                if not isinstance(value, spec):
-                    value = spec(value, **params)
-                else:
-                    value = _fix_tagging(value, params)
+                value = (
+                    _fix_tagging(value, params)
+                    if isinstance(value, spec)
+                    else spec(value, **params)
+                )
+
                 self._parsed = value
 
         except (ValueError, TypeError) as e:
@@ -1240,7 +1234,7 @@ class Choice(Asn1Value):
             A unicode string of a human-friendly representation of the class and tag
         """
 
-        return '[%s %s]' % (CLASS_NUM_TO_NAME_MAP[class_].upper(), tag)
+        return f'[{CLASS_NUM_TO_NAME_MAP[class_].upper()} {tag}]'
 
     def _copy(self, other, copy_func):
         """
@@ -1365,10 +1359,7 @@ class Concat(object):
             A unicode string
         """
 
-        if _PY2:
-            return self.__bytes__()
-        else:
-            return self.__unicode__()
+        return self.__bytes__() if _PY2 else self.__unicode__()
 
     def __bytes__(self):
         """
@@ -1391,7 +1382,7 @@ class Concat(object):
             A unicode string
         """
 
-        return '<%s %s %s>' % (type_name(self), id(self), repr(self.dump()))
+        return f'<{type_name(self)} {id(self)} {repr(self.dump())}>'
 
     def __copy__(self):
         """
@@ -1460,8 +1451,8 @@ class Concat(object):
         """
 
         prefix = '  ' * nest_level
-        print('%s%s Object #%s' % (prefix, type_name(self), id(self)))
-        print('%s  Children:' % (prefix,))
+        print(f'{prefix}{type_name(self)} Object #{id(self)}')
+        print(f'{prefix}  Children:')
         for child in self._children:
             child.debug(nest_level + 2)
 
@@ -1674,13 +1665,23 @@ class Primitive(Asn1Value):
         if self.__class__.tag != other.__class__.tag:
             return False
 
-        if self.__class__ == other.__class__ and self.contents == other.contents:
+        if self.__class__ == other.__class__:
             return True
 
         # If the objects share a common base class that is not too low-level
         # then we can compare the contents
-        self_bases = (set(self.__class__.__bases__) | set([self.__class__])) - set([Asn1Value, Primitive, ValueMap])
-        other_bases = (set(other.__class__.__bases__) | set([other.__class__])) - set([Asn1Value, Primitive, ValueMap])
+        self_bases = (set(self.__class__.__bases__) | {self.__class__}) - {
+            Asn1Value,
+            Primitive,
+            ValueMap,
+        }
+
+        other_bases = (set(other.__class__.__bases__) | {other.__class__}) - {
+            Asn1Value,
+            Primitive,
+            ValueMap,
+        }
+
         if self_bases | other_bases:
             return self.contents == other.contents
 
@@ -1767,10 +1768,7 @@ class AbstractString(Constructable, Primitive):
             A unicode string or None
         """
 
-        if self.contents is None:
-            return None
-
-        return self.__unicode__()
+        return None if self.contents is None else self.__unicode__()
 
 
 class Boolean(Primitive):
@@ -1789,7 +1787,7 @@ class Boolean(Primitive):
         """
 
         self._native = bool(value)
-        self.contents = b'\x00' if not value else b'\xff'
+        self.contents = b'\xff' if value else b'\x00'
         self._header = None
         if self._trailer != b'':
             self._trailer = b''
@@ -1953,7 +1951,7 @@ class BitString(Constructable, Castable, Primitive, ValueMap, object):
 
             bits = [0] * self._size
             self._native = value
-            for index in range(0, self._size):
+            for index in range(self._size):
                 key = self._map.get(index)
                 if key is None:
                     continue
@@ -2011,15 +2009,8 @@ class BitString(Constructable, Castable, Primitive, ValueMap, object):
 
         size_in_bytes = int(math.ceil(size / 8))
 
-        if extra_bits:
-            extra_bits_byte = int_to_bytes(extra_bits)
-        else:
-            extra_bits_byte = b'\x00'
-
-        if value == '':
-            value_bytes = b''
-        else:
-            value_bytes = int_to_bytes(int(value, 2))
+        extra_bits_byte = int_to_bytes(extra_bits) if extra_bits else b'\x00'
+        value_bytes = b'' if value == '' else int_to_bytes(int(value, 2))
         if len(value_bytes) != size_in_bytes:
             value_bytes = (b'\x00' * (size_in_bytes - len(value_bytes))) + value_bytes
 
@@ -2069,10 +2060,7 @@ class BitString(Constructable, Castable, Primitive, ValueMap, object):
             self.native
 
         if self._map is None:
-            if len(self._native) >= key + 1:
-                return bool(self._native[key])
-            return False
-
+            return bool(self._native[key]) if len(self._native) >= key + 1 else False
         if is_int:
             key = self._map.get(key, key)
 
@@ -2129,9 +2117,8 @@ class BitString(Constructable, Castable, Primitive, ValueMap, object):
             if value:
                 if key not in self._native:
                     self._native.add(key)
-            else:
-                if key in self._native:
-                    self._native.remove(key)
+            elif key in self._native:
+                self._native.remove(key)
 
         self.set(self._native)
 
@@ -2143,7 +2130,7 @@ class BitString(Constructable, Castable, Primitive, ValueMap, object):
             A tuple of integers
         """
 
-        extra_bits = int_from_bytes(self.contents[0:1])
+        extra_bits = int_from_bytes(self.contents[:1])
         bit_string = '{0:b}'.format(int_from_bytes(self.contents[1:]))
         byte_len = len(self.contents[1:])
         bit_len = len(bit_string)
@@ -2161,7 +2148,7 @@ class BitString(Constructable, Castable, Primitive, ValueMap, object):
 
         # Trim off the extra bits on the right used to fill the last byte
         if extra_bits > 0:
-            bit_string = bit_string[0:0 - extra_bits]
+            bit_string = bit_string[:0 - extra_bits]
 
         return tuple(map(int, tuple(bit_string)))
 
@@ -2277,10 +2264,7 @@ class OctetBitString(Constructable, Castable, Primitive):
             A byte string or None
         """
 
-        if self.contents is None:
-            return None
-
-        return self.__bytes__()
+        return None if self.contents is None else self.__bytes__()
 
 
 class IntegerBitString(Constructable, Castable, Primitive):
@@ -2330,7 +2314,7 @@ class IntegerBitString(Constructable, Castable, Primitive):
             A unicode string of bits - 1s and 0s
         """
 
-        extra_bits = int_from_bytes(self.contents[0:1])
+        extra_bits = int_from_bytes(self.contents[:1])
         bit_string = '{0:b}'.format(int_from_bytes(self.contents[1:]))
 
         # Ensure we have leading zeros since these chunks may be concatenated together
@@ -2338,10 +2322,7 @@ class IntegerBitString(Constructable, Castable, Primitive):
         if mod_bit_len != 0:
             bit_string = ('0' * (8 - mod_bit_len)) + bit_string
 
-        if extra_bits > 0:
-            return bit_string[0:0 - extra_bits]
-
-        return bit_string
+        return bit_string[:0 - extra_bits] if extra_bits > 0 else bit_string
 
     @property
     def native(self):
@@ -2356,13 +2337,13 @@ class IntegerBitString(Constructable, Castable, Primitive):
             return None
 
         if self._native is None:
-            extra_bits = int_from_bytes(self.contents[0:1])
+            extra_bits = int_from_bytes(self.contents[:1])
             # Fast path
             if not self._indefinite and extra_bits == 0:
                 self._native = int_from_bytes(self.contents[1:])
+            elif self._indefinite and extra_bits > 0:
+                raise ValueError('Constructed bit string has extra bits on indefinite container')
             else:
-                if self._indefinite and extra_bits > 0:
-                    raise ValueError('Constructed bit string has extra bits on indefinite container')
                 self._native = int(self._merge_chunks(), 2)
         return self._native
 
@@ -2439,10 +2420,7 @@ class OctetString(Constructable, Castable, Primitive):
             A byte string or None
         """
 
-        if self.contents is None:
-            return None
-
-        return self.__bytes__()
+        return None if self.contents is None else self.__bytes__()
 
 
 class IntegerOctetString(Constructable, Castable, Primitive):
@@ -2620,10 +2598,7 @@ class ParsableOctetString(Constructable, Castable, Primitive):
         if self.contents is None:
             return None
 
-        if self._parsed is not None:
-            return self._parsed[0].native
-        else:
-            return self.__bytes__()
+        return self._parsed[0].native if self._parsed is not None else self.__bytes__()
 
     @property
     def parsed(self):
@@ -2652,10 +2627,7 @@ class ParsableOctetString(Constructable, Castable, Primitive):
         """
 
         if force:
-            if self._parsed is not None:
-                native = self.parsed.dump(force=force)
-            else:
-                native = self.native
+            native = self.native if self._parsed is None else self.parsed.dump(force=force)
             self.contents = None
             self.set(native)
 
@@ -2852,9 +2824,8 @@ class ObjectIdentifier(Primitive, ValueMap):
 
         self._native = value
 
-        if self._map is not None:
-            if value in self._reverse_map:
-                value = self._reverse_map[value]
+        if self._map is not None and value in self._reverse_map:
+            value = self._reverse_map[value]
 
         self.contents = b''
         first = None
@@ -2869,10 +2840,10 @@ class ObjectIdentifier(Primitive, ValueMap):
                 part = (first * 40) + part
 
             encoded_part = chr_cls(0x7F & part)
-            part = part >> 7
+            part >>= 7
             while part > 0:
                 encoded_part = chr_cls(0x80 | (0x7F & part)) + encoded_part
-                part = part >> 7
+                part >>= 7
             self.contents += encoded_part
 
         self._header = None
@@ -2906,9 +2877,8 @@ class ObjectIdentifier(Primitive, ValueMap):
                 part += byte & 127
                 # Last byte in subidentifier has the eighth bit set to 0
                 if byte & 0x80 == 0:
-                    if len(output) == 0:
-                        output.append(str_cls(part // 40))
-                        output.append(str_cls(part % 40))
+                    if not output:
+                        output.extend((str_cls(part // 40), str_cls(part % 40)))
                     else:
                         output.append(str_cls(part))
                     part = 0
@@ -3203,7 +3173,7 @@ class Sequence(Asn1Value):
         mutated = self._mutated
         if self.children is not None:
             for child in self.children:
-                if isinstance(child, Sequence) or isinstance(child, SequenceOf):
+                if isinstance(child, (Sequence, SequenceOf)):
                     mutated = mutated or child._is_mutated()
 
         return mutated
@@ -3553,11 +3523,7 @@ class Sequence(Asn1Value):
             new_value = value_spec(value, **field_params)
 
         else:
-            if isinstance(value, value_spec):
-                new_value = value
-            else:
-                new_value = value_spec(value)
-
+            new_value = value if isinstance(value, value_spec) else value_spec(value)
             # For when the field is OctetString or OctetBitString with embedded
             # values we need to wrap the value in the field spec to get the
             # appropriate encoded value.

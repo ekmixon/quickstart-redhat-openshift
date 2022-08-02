@@ -77,10 +77,7 @@ class _ForceNullParameters(object):
             if algo in self._oid_specs:
                 return self._oid_specs[algo]
 
-        if self['algorithm'].dotted in self._null_algos:
-            return Null
-
-        return None
+        return Null if self['algorithm'].dotted in self._null_algos else None
 
     _spec_callbacks = {
         'parameters': _parameters_spec
@@ -535,7 +532,7 @@ class DSASignature(Sequence):
             A DSASignature object
         """
 
-        r = int_from_bytes(data[0:len(data) // 2])
+        r = int_from_bytes(data[:len(data) // 2])
         s = int_from_bytes(data[len(data) // 2:])
         return cls({'r': r, 's': s})
 
@@ -820,12 +817,13 @@ class EncryptionAlgorithm(_ForceNullParameters, Sequence):
 
         encryption_algo = self['algorithm'].native
 
-        if encryption_algo[0:3] == 'aes':
+        if encryption_algo[:3] == 'aes':
             return {
                 'aes128_': 16,
                 'aes192_': 24,
                 'aes256_': 32,
-            }[encryption_algo[0:7]]
+            }[encryption_algo[:7]]
+
 
         cipher_lengths = {
             'des': 8,
@@ -910,16 +908,16 @@ class EncryptionAlgorithm(_ForceNullParameters, Sequence):
 
         encryption_algo = self['algorithm'].native
 
-        if encryption_algo[0:7] in set(['aes128_', 'aes192_', 'aes256_']):
+        if encryption_algo[:7] in {'aes128_', 'aes192_', 'aes256_'}:
             return encryption_algo[7:]
 
-        if encryption_algo[0:6] == 'pbes1_':
+        if encryption_algo[:6] == 'pbes1_':
             return 'cbc'
 
-        if encryption_algo[0:7] == 'pkcs12_':
+        if encryption_algo[:7] == 'pkcs12_':
             return 'cbc'
 
-        if encryption_algo in set(['des', 'tripledes_3key', 'rc2', 'rc5']):
+        if encryption_algo in {'des', 'tripledes_3key', 'rc2', 'rc5'}:
             return 'cbc'
 
         if encryption_algo == 'pbes2':
@@ -946,10 +944,10 @@ class EncryptionAlgorithm(_ForceNullParameters, Sequence):
 
         encryption_algo = self['algorithm'].native
 
-        if encryption_algo[0:7] in set(['aes128_', 'aes192_', 'aes256_']):
+        if encryption_algo[:7] in {'aes128_', 'aes192_', 'aes256_'}:
             return 'aes'
 
-        if encryption_algo in set(['des', 'rc2', 'rc5']):
+        if encryption_algo in {'des', 'rc2', 'rc5'}:
             return encryption_algo
 
         if encryption_algo == 'tripledes_3key':
@@ -992,7 +990,7 @@ class EncryptionAlgorithm(_ForceNullParameters, Sequence):
 
         encryption_algo = self['algorithm'].native
 
-        if encryption_algo[0:7] in set(['aes128_', 'aes192_', 'aes256_']):
+        if encryption_algo[:7] in {'aes128_', 'aes192_', 'aes256_'}:
             return 16
 
         cipher_map = {
@@ -1045,11 +1043,11 @@ class EncryptionAlgorithm(_ForceNullParameters, Sequence):
 
         encryption_algo = self['algorithm'].native
 
-        if encryption_algo in set(['rc2', 'rc5']):
+        if encryption_algo in {'rc2', 'rc5'}:
             return self['parameters'].parsed['iv'].native
 
         # For DES/Triple DES and AES the IV is the entirety of the parameters
-        octet_string_iv_oids = set([
+        octet_string_iv_oids = {
             'des',
             'tripledes_3key',
             'aes128_cbc',
@@ -1058,7 +1056,8 @@ class EncryptionAlgorithm(_ForceNullParameters, Sequence):
             'aes128_ofb',
             'aes192_ofb',
             'aes256_ofb',
-        ])
+        }
+
         if encryption_algo in octet_string_iv_oids:
             return self['parameters'].native
 

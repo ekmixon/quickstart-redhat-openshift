@@ -178,17 +178,17 @@ class _ECPoint():
         """
 
         data = self.native
-        first_byte = data[0:1]
+        first_byte = data[:1]
 
         # Uncompressed
         if first_byte == b'\x04':
             remaining = data[1:]
             field_len = len(remaining) // 2
-            x = int_from_bytes(remaining[0:field_len])
+            x = int_from_bytes(remaining[:field_len])
             y = int_from_bytes(remaining[field_len:])
             return (x, y)
 
-        if first_byte not in set([b'\x02', b'\x03']):
+        if first_byte not in {b'\x02', b'\x03'}:
             raise ValueError(unwrap(
                 '''
                 Invalid EC public key - first byte is incorrect
@@ -554,10 +554,12 @@ class PrivateKeyInfo(Sequence):
             public_key = private_key['public_key']
             private_key = private_key['private_key']
         elif algorithm == 'ec':
-            if not isinstance(private_key, ECPrivateKey):
-                private_key = ECPrivateKey.load(private_key)
-            else:
-                private_key = private_key.copy()
+            private_key = (
+                private_key.copy()
+                if isinstance(private_key, ECPrivateKey)
+                else ECPrivateKey.load(private_key)
+            )
+
             params = private_key['parameters']
             del private_key['parameters']
         else:
@@ -714,11 +716,7 @@ class PrivateKeyInfo(Sequence):
         params = self['private_key_algorithm']['parameters']
         chosen = params.chosen
 
-        if params.name == 'implicit_ca':
-            value = None
-        else:
-            value = chosen.native
-
+        value = None if params.name == 'implicit_ca' else chosen.native
         return (params.name, value)
 
     @property
@@ -798,10 +796,12 @@ class PrivateKeyInfo(Sequence):
         if self._public_key is None:
             if self.algorithm == 'ec':
                 key = self['private_key'].parsed
-                if key['public_key']:
-                    self._public_key = key['public_key'].untag()
-                else:
-                    self._public_key = self._compute_public_key()
+                self._public_key = (
+                    key['public_key'].untag()
+                    if key['public_key']
+                    else self._compute_public_key()
+                )
+
             else:
                 self._public_key = self._compute_public_key()
 
@@ -861,7 +861,7 @@ class PrivateKeyInfo(Sequence):
                     public_key = self.public_key.native
 
                 if params.name == 'named':
-                    to_hash = '%s:' % params.chosen.native
+                    to_hash = f'{params.chosen.native}:'
                     to_hash = to_hash.encode('utf-8')
                     to_hash += public_key
 
@@ -869,7 +869,7 @@ class PrivateKeyInfo(Sequence):
                     to_hash = public_key
 
                 elif params.name == 'specified':
-                    to_hash = '%s:' % params.chosen['field_id']['parameters'].native
+                    to_hash = f"{params.chosen['field_id']['parameters'].native}:"
                     to_hash = to_hash.encode('utf-8')
                     to_hash += b':' + params.chosen['curve']['a'].native
                     to_hash += b':' + params.chosen['curve']['b'].native
@@ -1087,11 +1087,7 @@ class PublicKeyInfo(Sequence):
         params = self['algorithm']['parameters']
         chosen = params.chosen
 
-        if params.name == 'implicit_ca':
-            value = None
-        else:
-            value = chosen.native
-
+        value = None if params.name == 'implicit_ca' else chosen.native
         return (params.name, value)
 
     @property
@@ -1227,7 +1223,7 @@ class PublicKeyInfo(Sequence):
                 key = self['public_key']
 
                 if params.name == 'named':
-                    to_hash = '%s:' % params.chosen.native
+                    to_hash = f'{params.chosen.native}:'
                     to_hash = to_hash.encode('utf-8')
                     to_hash += key.native
 
@@ -1235,7 +1231,7 @@ class PublicKeyInfo(Sequence):
                     to_hash = key.native
 
                 elif params.name == 'specified':
-                    to_hash = '%s:' % params.chosen['field_id']['parameters'].native
+                    to_hash = f"{params.chosen['field_id']['parameters'].native}:"
                     to_hash = to_hash.encode('utf-8')
                     to_hash += b':' + params.chosen['curve']['a'].native
                     to_hash += b':' + params.chosen['curve']['b'].native

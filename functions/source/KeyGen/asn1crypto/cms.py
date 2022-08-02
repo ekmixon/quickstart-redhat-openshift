@@ -495,9 +495,12 @@ class CertificateChoices(Choice):
         """
 
         super(CertificateChoices, self).validate(class_, tag, contents)
-        if self._choice == 2:
-            if AttCertVersion.load(Sequence.load(contents)[0].dump()).native == 'v2':
-                self._choice = 3
+        if (
+            self._choice == 2
+            and AttCertVersion.load(Sequence.load(contents)[0].dump()).native
+            == 'v2'
+        ):
+            self._choice = 3
 
 
 class CertificateSet(SetOf):

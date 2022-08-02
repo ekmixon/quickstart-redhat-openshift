@@ -13,7 +13,7 @@ logs_client = boto3.client('logs')
 
 
 def handler(event, context):
-    print('Received event: %s' % json.dumps(event))
+    print(f'Received event: {json.dumps(event)}')
     status = cfnresponse.SUCCESS
     physical_resource_id = None
     data = {}
@@ -36,7 +36,7 @@ def handler(event, context):
                     IdempotencyToken=token
                 )['CertificateArn']
             physical_resource_id = arn
-            logging.info("certificate arn: %s" % arn)
+            logging.info(f"certificate arn: {arn}")
             rs = {}
             time.sleep(15)  # Give ACM time to generate CNAME records
             while True:
@@ -45,14 +45,14 @@ def handler(event, context):
                         rs[d['ResourceRecord']['Name']] = d['ResourceRecord']['Value']
                     break
                 except KeyError:
-                    if (context.get_remaining_time_in_millis() / 1000.00) > 20.0:
+                    if context.get_remaining_time_in_millis() > 20.0 * 1000.00:
                         print('waiting for ResourceRecord to be available')
                         time.sleep(15)
                     else:
                         logging.error('timed out waiting for ResourceRecord')
                         status = cfnresponse.FAILED
                     time.sleep(15)
-            for r in rs.keys():
+            for r in rs:
                 change = [{'Action': 'CREATE', 'ResourceRecordSet': {'Name': r, 'Type': 'CNAME', 'TTL': 600, 'ResourceRecords': [{'Value': rs[r]}]}}]
                 try:
                     r53_client.change_resource_record_sets(HostedZoneId=event['ResourceProperties']['HostedZoneId'], ChangeBatch={'Changes': change})
@@ -61,22 +61,20 @@ def handler(event, context):
                         raise
             while 'PENDING_VALIDATION' in [v['ValidationStatus'] for v in acm_client.describe_certificate(CertificateArn=arn)['Certificate']['DomainValidationOptions']]:
                 print('waiting for validation to complete')
-                if (context.get_remaining_time_in_millis() / 1000.00) > 20.0:
+                if context.get_remaining_time_in_millis() > 20.0 * 1000.00:
                     time.sleep(15)
                 else:
                     logging.error('validation timed out')
                     status = cfnresponse.FAILED
-            for r in [v for v in acm_client.describe_certificate(CertificateArn=arn)['Certificate']['DomainValidationOptions']]:
+            for r in list(acm_client.describe_certificate(CertificateArn=arn)['Certificate']['DomainValidationOptions']):
                 if r['ValidationStatus'] != 'SUCCESS':
                     logging.debug(r)
                     status = cfnresponse.FAILED
                     reason = 'One or more domains failed to validate'
                     logging.error(reason)
             data['Arn'] = arn
-            # delay as long as possible to give the cert a chance to propogate
-            # TODO: Remove this commented out code
-#            while context.get_remaining_time_in_millis() / 1000.00 > 10.0:
-#                time.sleep(5)
+                    # delay as long as possible to give the cert a chance to propogate
+                    # TODO: Remove this commented out code
         elif event['RequestType'] == 'Update':
             reason = 'Exception: Stack updates are not supported'
             logging.error(reason)
@@ -87,10 +85,26 @@ def handler(event, context):
             if not re.match(r'arn:[\w+=/,.@-]+:[\w+=/,.@-]+:[\w+=/,.@-]*:[0-9]+:[\w+=,.@-]+(/[\w+=,.@-]+)*', physical_resource_id):
                 logging.info("PhysicalId is not an acm arn, assuming creation never happened and skipping delete")
             else:
-                rs={}
-                for d in acm_client.describe_certificate(CertificateArn=physical_resource_id)['Certificate']['DomainValidationOptions']:
-                    rs[d['ResourceRecord']['Name']] = d['ResourceRecord']['Value']
-                rs = [{'Action': 'DELETE', 'ResourceRecordSet': {'Name': r, 'Type': 'CNAME', 'TTL': 600,'ResourceRecords': [{'Value': rs[r]}]}} for r in rs.keys()]
+                rs = {
+                    d['ResourceRecord']['Name']: d['ResourceRecord']['Value']
+                    for d in acm_client.describe_certificate(
+                        CertificateArn=physical_resource_id
+                    )['Certificate']['DomainValidationOptions']
+                }
+
+                rs = [
+                    {
+                        'Action': 'DELETE',
+                        'ResourceRecordSet': {
+                            'Name': r,
+                            'Type': 'CNAME',
+                            'TTL': 600,
+                            'ResourceRecords': [{'Value': rs[r]}],
+                        },
+                    }
+                    for r in rs
+                ]
+
                 try:
                     r53_client.change_resource_record_sets(HostedZoneId=event['ResourceProperties']['HostedZoneId'], ChangeBatch={'Changes': rs})
                 except r53_client.exceptions.InvalidChangeBatch as e:
@@ -103,13 +117,14 @@ def handler(event, context):
                     acm_client.delete_certificate(CertificateArn=physical_resource_id)
 
     except Exception as e:
-        logging.error('Exception: %s' % e, exc_info=True)
+        logging.error(f'Exception: {e}', exc_info=True)
         reason = str(e)
         status = cfnresponse.FAILED
     finally:
         if event['RequestType'] == 'Delete':
             try:
-                wait_message = 'waiting for events for request_id %s to propagate to cloudwatch...' % context.aws_request_id
+                wait_message = f'waiting for events for request_id {context.aws_request_id} to propagate to cloudwatch...'
+
                 while not logs_client.filter_log_events(
                         logGroupName=context.log_group_name,
                         logStreamNames=[context.log_stream_name],
@@ -118,6 +133,6 @@ def handler(event, context):
                     print(wait_message)
                     time.sleep(5)
             except Exception as e:
-                logging.error('Exception: %s' % e, exc_info=True)
+                logging.error(f'Exception: {e}', exc_info=True)
                 time.sleep(120)
         cfnresponse.send(event, context, status, data, physical_resource_id, reason)

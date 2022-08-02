@@ -58,14 +58,11 @@ def assert_header_parsing(headers):
     get_payload = getattr(headers, "get_payload", None)
 
     unparsed_data = None
-    if get_payload:
-        # get_payload is actually email.message.Message.get_payload;
-        # we're only interested in the result if it's not a multipart message
-        if not headers.is_multipart():
-            payload = get_payload()
+    if get_payload and not headers.is_multipart():
+        payload = get_payload()
 
-            if isinstance(payload, (bytes, str)):
-                unparsed_data = payload
+        if isinstance(payload, (bytes, str)):
+            unparsed_data = payload
 
     if defects or unparsed_data:
         raise HeaderParsingError(defects=defects, unparsed_data=unparsed_data)
@@ -81,6 +78,4 @@ def is_response_to_head(response):
     """
     # FIXME: Can we do this somehow without accessing private httplib _method?
     method = response._method
-    if isinstance(method, int):  # Platform-specific: Appengine
-        return method == 3
-    return method.upper() == "HEAD"
+    return method == 3 if isinstance(method, int) else method.upper() == "HEAD"

@@ -167,9 +167,9 @@ class HTTPHeaderDict(MutableMapping):
             return False
         if not isinstance(other, type(self)):
             other = type(self)(other)
-        return dict((k.lower(), v) for k, v in self.itermerged()) == dict(
-            (k.lower(), v) for k, v in other.itermerged()
-        )
+        return {k.lower(): v for k, v in self.itermerged()} == {
+            k.lower(): v for k, v in other.itermerged()
+        }
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -237,7 +237,7 @@ class HTTPHeaderDict(MutableMapping):
                 "extend() takes at most 1 positional "
                 "arguments ({0} given)".format(len(args))
             )
-        other = args[0] if len(args) >= 1 else ()
+        other = args[0] if args else ()
 
         if isinstance(other, HTTPHeaderDict):
             for key, val in other.iteritems():
@@ -261,9 +261,7 @@ class HTTPHeaderDict(MutableMapping):
         try:
             vals = self._container[key.lower()]
         except KeyError:
-            if default is self.__marker:
-                return []
-            return default
+            return [] if default is self.__marker else default
         else:
             return vals[1:]
 
@@ -276,7 +274,7 @@ class HTTPHeaderDict(MutableMapping):
     get_all = getlist
 
     def __repr__(self):
-        return "%s(%s)" % (type(self).__name__, dict(self.itermerged()))
+        return f"{type(self).__name__}({dict(self.itermerged())})"
 
     def _copy_from(self, other):
         for key in other:
@@ -308,7 +306,7 @@ class HTTPHeaderDict(MutableMapping):
         return list(self.iteritems())
 
     @classmethod
-    def from_httplib(cls, message):  # Python 2
+    def from_httplib(cls, message):    # Python 2
         """Read headers from a Python 2 httplib message object."""
         # python2.7 does not expose a proper API for exporting multiheaders
         # efficiently. This function re-reads raw lines from the message
@@ -322,13 +320,10 @@ class HTTPHeaderDict(MutableMapping):
                     # We received a header line that starts with OWS as described
                     # in RFC-7230 S3.2.4. This indicates a multiline header, but
                     # there exists no previous header to which we can attach it.
-                    raise InvalidHeader(
-                        "Header continuation with no previous header: %s" % line
-                    )
-                else:
-                    key, value = headers[-1]
-                    headers[-1] = (key, value + " " + line.strip())
-                    continue
+                    raise InvalidHeader(f"Header continuation with no previous header: {line}")
+                key, value = headers[-1]
+                headers[-1] = key, f"{value} {line.strip()}"
+                continue
 
             key, value = line.split(":", 1)
             headers.append((key, value.strip()))

@@ -87,10 +87,11 @@ class DNSName(IA5String):
             A boolean
         """
 
-        if not isinstance(other, DNSName):
-            return False
-
-        return self.__unicode__().lower() == other.__unicode__().lower()
+        return (
+            self.__unicode__().lower() == other.__unicode__().lower()
+            if isinstance(other, DNSName)
+            else False
+        )
 
     def set(self, value):
         """
@@ -160,10 +161,11 @@ class URI(IA5String):
             A boolean
         """
 
-        if not isinstance(other, URI):
-            return False
-
-        return iri_to_uri(self.native) == iri_to_uri(other.native)
+        return (
+            iri_to_uri(self.native) == iri_to_uri(other.native)
+            if isinstance(other, URI)
+            else False
+        )
 
     def __unicode__(self):
         """
@@ -280,10 +282,7 @@ class EmailAddress(IA5String):
         if mailbox != other_mailbox:
             return False
 
-        if hostname.lower() != other_hostname.lower():
-            return False
-
-        return True
+        return hostname.lower() == other_hostname.lower()
 
 
 class IPAddress(OctetString):
@@ -385,18 +384,18 @@ class IPAddress(OctetString):
             byte_string = self.__bytes__()
             byte_len = len(byte_string)
             cidr_int = None
-            if byte_len in set([32, 16]):
-                value = inet_ntop(socket.AF_INET6, byte_string[0:16])
+            if byte_len in {32, 16}:
+                value = inet_ntop(socket.AF_INET6, byte_string[:16])
                 if byte_len > 16:
                     cidr_int = int_from_bytes(byte_string[16:])
-            elif byte_len in set([8, 4]):
-                value = inet_ntop(socket.AF_INET, byte_string[0:4])
+            elif byte_len in {8, 4}:
+                value = inet_ntop(socket.AF_INET, byte_string[:4])
                 if byte_len > 4:
                     cidr_int = int_from_bytes(byte_string[4:])
             if cidr_int is not None:
                 cidr_bits = '{0:b}'.format(cidr_int)
                 cidr = len(cidr_bits.rstrip('0'))
-                value = value + '/' + str_cls(cidr)
+                value = f'{value}/{str_cls(cidr)}'
             self._native = value
         return self._native
 
@@ -412,10 +411,11 @@ class IPAddress(OctetString):
             A boolean
         """
 
-        if not isinstance(other, IPAddress):
-            return False
-
-        return self.__bytes__() == other.__bytes__()
+        return (
+            self.__bytes__() == other.__bytes__()
+            if isinstance(other, IPAddress)
+            else False
+        )
 
 
 class Attribute(Sequence):
@@ -841,10 +841,8 @@ class RelativeDistinguishedName(SetOf):
             A unicode string that can be used as a dict key or in a set
         """
 
-        output = []
         values = self._get_values(self)
-        for key in sorted(values.keys()):
-            output.append('%s: %s' % (key, values[key]))
+        output = [f'{key}: {values[key]}' for key in sorted(values.keys())]
         # Unit separator is used here since the normalization process for
         # values moves any such character, and the keys are all dotted integers
         # or under_score_words
@@ -879,11 +877,10 @@ class RelativeDistinguishedName(SetOf):
         self_values = self._get_values(self)
         other_values = self._get_values(other)
 
-        for type_name_ in self_types:
-            if self_values[type_name_] != other_values[type_name_]:
-                return False
-
-        return True
+        return all(
+            self_values[type_name_] == other_values[type_name_]
+            for type_name_ in self_types
+        )
 
     def _get_types(self, rdn):
         """
@@ -897,7 +894,7 @@ class RelativeDistinguishedName(SetOf):
             values
         """
 
-        return set([ntv['type'].native for ntv in rdn])
+        return {ntv['type'].native for ntv in rdn}
 
     def _get_values(self, rdn):
         """
@@ -951,11 +948,7 @@ class RDNSequence(SequenceOf):
         if len(self) != len(other):
             return False
 
-        for index, self_rdn in enumerate(self):
-            if other[index] != self_rdn:
-                return False
-
-        return True
+        return all(other[index] == self_rdn for index, self_rdn in enumerate(self))
 
 
 class Name(Choice):
@@ -1008,7 +1001,7 @@ class Name(Choice):
                 value = EmailAddress(attribute_value)
             elif attribute_name == 'domain_component':
                 value = DNSName(attribute_value)
-            elif attribute_name in set(['dn_qualifier', 'country_name', 'serial_number']):
+            elif attribute_name in {'dn_qualifier', 'country_name', 'serial_number'}:
                 value = DirectoryString(
                     name='printable_string',
                     value=PrintableString(attribute_value)
@@ -1054,9 +1047,7 @@ class Name(Choice):
             A boolean
         """
 
-        if not isinstance(other, Name):
-            return False
-        return self.chosen == other.chosen
+        return self.chosen == other.chosen if isinstance(other, Name) else False
 
     @property
     def native(self):
@@ -1100,15 +1091,10 @@ class Name(Choice):
             for key in keys:
                 value = data[key]
                 native_value = self._recursive_humanize(value)
-                to_join.append('%s: %s' % (key, native_value))
+                to_join.append(f'{key}: {native_value}')
 
-            has_comma = False
-            for element in to_join:
-                if element.find(',') != -1:
-                    has_comma = True
-                    break
-
-            separator = ', ' if not has_comma else '; '
+            has_comma = any(element.find(',') != -1 for element in to_join)
+            separator = '; ' if has_comma else ', '
             self._human_friendly = separator.join(to_join[::-1])
 
         return self._human_friendly
@@ -1444,10 +1430,7 @@ class GeneralName(Choice):
                 other.name
             ))
 
-        if self.name != other.name:
-            return False
-
-        return self.chosen == other.chosen
+        return False if self.name != other.name else self.chosen == other.chosen
 
 
 class GeneralNames(SequenceOf):
@@ -2026,9 +2009,7 @@ class SubjectDirectoryAttribute(Sequence):
 
     def _values_spec(self):
         type_ = self['type'].native
-        if type_ in self._oid_specs:
-            return self._oid_specs[type_]
-        return SetOf
+        return self._oid_specs[type_] if type_ in self._oid_specs else SetOf
 
     _spec_callbacks = {
         'values': _values_spec
@@ -2173,7 +2154,7 @@ class Certificate(Sequence):
 
         for extension in self['tbs_certificate']['extensions']:
             name = extension['extn_id'].native
-            attribute_name = '_%s_value' % name
+            attribute_name = f'_{name}_value'
             if hasattr(self, attribute_name):
                 setattr(self, attribute_name, extension['extn_value'].parsed)
             if extension['critical'].native:
@@ -2554,10 +2535,7 @@ class Certificate(Sequence):
             key identifier extension
         """
 
-        if not self.key_identifier_value:
-            return None
-
-        return self.key_identifier_value.native
+        return self.key_identifier_value.native if self.key_identifier_value else None
 
     @property
     def issuer_serial(self):
@@ -2580,10 +2558,11 @@ class Certificate(Sequence):
             identifier extension
         """
 
-        if not self.authority_key_identifier_value:
-            return None
-
-        return self.authority_key_identifier_value['key_identifier'].native
+        return (
+            self.authority_key_identifier_value['key_identifier'].native
+            if self.authority_key_identifier_value
+            else None
+        )
 
     @property
     def authority_issuer_serial(self):
@@ -2658,9 +2637,11 @@ class Certificate(Sequence):
             if distribution_point_name.name == 'name_relative_to_crl_issuer':
                 continue
             # This library is currently only concerned with HTTP-based CRLs
-            for general_name in distribution_point_name.chosen:
-                if general_name.name == 'uniform_resource_identifier':
-                    output.append(distribution_point)
+            output.extend(
+                distribution_point
+                for general_name in distribution_point_name.chosen
+                if general_name.name == 'uniform_resource_identifier'
+            )
 
         return output
 
@@ -2701,15 +2682,13 @@ class Certificate(Sequence):
             # the choice selected since it distinguishes between domain names,
             # email addresses, IPs, etc
             if self.subject_alt_name_value:
-                for general_name in self.subject_alt_name_value:
-                    if general_name.name == 'dns_name' and general_name.native not in self._valid_domains:
-                        self._valid_domains.append(general_name.native)
+                self._valid_domains.extend(
+                    general_name.native
+                    for general_name in self.subject_alt_name_value
+                    if general_name.name == 'dns_name'
+                    and general_name.native not in self._valid_domains
+                )
 
-            # If there was no subject alt name extension, and the common name
-            # in the subject looks like a domain, that is considered the valid
-            # list. This is done because according to
-            # https://tools.ietf.org/html/rfc6125#section-6.4.4, the common
-            # name should not be used if the subject alt name is present.
             else:
                 pattern = re.compile('^(\\*\\.)?(?:[a-zA-Z0-9](?:[a-zA-Z0-9\\-]*[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$')
                 for rdn in self.subject.chosen:
@@ -2732,9 +2711,11 @@ class Certificate(Sequence):
             self._valid_ips = []
 
             if self.subject_alt_name_value:
-                for general_name in self.subject_alt_name_value:
-                    if general_name.name == 'ip_address':
-                        self._valid_ips.append(general_name.native)
+                self._valid_ips.extend(
+                    general_name.native
+                    for general_name in self.subject_alt_name_value
+                    if general_name.name == 'ip_address'
+                )
 
         return self._valid_ips
 
@@ -2754,9 +2735,11 @@ class Certificate(Sequence):
             None or an integer of the maximum path length
         """
 
-        if not self.ca:
-            return None
-        return self.basic_constraints_value['path_len_constraint'].native
+        return (
+            self.basic_constraints_value['path_len_constraint'].native
+            if self.ca
+            else None
+        )
 
     @property
     def self_issued(self):
@@ -2788,9 +2771,10 @@ class Certificate(Sequence):
             self._self_signed = 'no'
             if self.self_issued:
                 if self.key_identifier:
-                    if not self.authority_key_identifier:
-                        self._self_signed = 'maybe'
-                    elif self.authority_key_identifier == self.key_identifier:
+                    if (
+                        not self.authority_key_identifier
+                        or self.authority_key_identifier == self.key_identifier
+                    ):
                         self._self_signed = 'maybe'
                 else:
                     self._self_signed = 'maybe'
@@ -2923,20 +2907,11 @@ class Certificate(Sequence):
         if domain.count('*') != 1:
             return False
 
-        labels = domain.lower().split('.')
-
-        if not labels:
+        if labels := domain.lower().split('.'):
+                # Wildcards may only appear in the left-most label
+            return False if labels[0].find('*') == -1 else labels[0][:4] != 'xn--'
+        else:
             return False
-
-        # Wildcards may only appear in the left-most label
-        if labels[0].find('*') == -1:
-            return False
-
-        # Wildcards may not be embedded in an A-label from an IDN
-        if labels[0][0:4] == 'xn--':
-            return False
-
-        return True
 
     def _is_wildcard_match(self, domain_labels, valid_domain_labels):
         """
@@ -2970,10 +2945,7 @@ class Certificate(Sequence):
             return True
 
         wildcard_regex = re.compile('^' + wildcard_label.replace('*', '.*') + '$')
-        if wildcard_regex.match(first_domain_label):
-            return True
-
-        return False
+        return bool(wildcard_regex.match(first_domain_label))
 
 
 # The structures are taken from the OpenSSL source file x_x509a.c, and specify

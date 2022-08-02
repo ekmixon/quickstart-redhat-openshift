@@ -9,13 +9,17 @@ class TestLogHelper(unittest.TestCase):
         logger = logging.getLogger('1')
         handler = logging.StreamHandler()
         logger.addHandler(handler)
-        orig_formatters = []
-        for c in range(len(logging.root.handlers)):
-            orig_formatters.append(logging.root.handlers[c].formatter)
+        orig_formatters = [
+            logging.root.handlers[c].formatter
+            for c in range(len(logging.root.handlers))
+        ]
+
         setup(level='DEBUG', formatter_cls=None, boto_level='CRITICAL')
-        new_formatters = []
-        for c in range(len(logging.root.handlers)):
-            new_formatters.append(logging.root.handlers[c].formatter)
+        new_formatters = [
+            logging.root.handlers[c].formatter
+            for c in range(len(logging.root.handlers))
+        ]
+
         self.assertEqual(orig_formatters, new_formatters)
 
     def test_logging_boto_explicit(self):

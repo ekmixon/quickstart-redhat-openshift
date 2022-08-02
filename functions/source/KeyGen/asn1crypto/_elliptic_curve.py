@@ -115,13 +115,11 @@ class PrimePoint():
         self.order = order
 
         # self.curve is allowed to be None only for INFINITY:
-        if self.curve:
-            if not self.curve.contains(self):
-                raise ValueError('Invalid EC point')
+        if self.curve and not self.curve.contains(self):
+            raise ValueError('Invalid EC point')
 
-        if self.order:
-            if self * self.order != INFINITY:
-                raise ValueError('Invalid EC point')
+        if self.order and self * self.order != INFINITY:
+            raise ValueError('Invalid EC point')
 
     def __cmp__(self, other):
         """
@@ -153,11 +151,7 @@ class PrimePoint():
             return other
         assert self.curve == other.curve
         if self.x == other.x:
-            if (self.y + other.y) % self.curve.p == 0:
-                return INFINITY
-            else:
-                return self.double()
-
+            return INFINITY if (self.y + other.y) % self.curve.p == 0 else self.double()
         p = self.curve.p
 
         l_ = ((other.y - self.y) * inverse_mod(other.x - self.x, p)) % p
@@ -180,7 +174,7 @@ class PrimePoint():
             assert x > 0
             result = 1
             while result <= x:
-                result = 2 * result
+                result *= 2
             return result // 2
 
         e = other

@@ -48,25 +48,25 @@ def emit(class_, method, tag, contents):
     """
 
     if not isinstance(class_, int):
-        raise TypeError('class_ must be an integer, not %s' % type_name(class_))
+        raise TypeError(f'class_ must be an integer, not {type_name(class_)}')
 
     if class_ < 0 or class_ > 3:
-        raise ValueError('class_ must be one of 0, 1, 2 or 3, not %s' % class_)
+        raise ValueError(f'class_ must be one of 0, 1, 2 or 3, not {class_}')
 
     if not isinstance(method, int):
-        raise TypeError('method must be an integer, not %s' % type_name(method))
+        raise TypeError(f'method must be an integer, not {type_name(method)}')
 
     if method < 0 or method > 1:
-        raise ValueError('method must be 0 or 1, not %s' % method)
+        raise ValueError(f'method must be 0 or 1, not {method}')
 
     if not isinstance(tag, int):
-        raise TypeError('tag must be an integer, not %s' % type_name(tag))
+        raise TypeError(f'tag must be an integer, not {type_name(tag)}')
 
     if tag < 0:
-        raise ValueError('tag must be greater than zero, not %s' % tag)
+        raise ValueError(f'tag must be greater than zero, not {tag}')
 
     if not isinstance(contents, byte_cls):
-        raise TypeError('contents must be a byte string, not %s' % type_name(contents))
+        raise TypeError(f'contents must be a byte string, not {type_name(contents)}')
 
     return _dump_header(class_, method, tag, contents) + contents
 
@@ -101,7 +101,7 @@ def parse(contents, strict=False):
     """
 
     if not isinstance(contents, byte_cls):
-        raise TypeError('contents must be a byte string, not %s' % type_name(contents))
+        raise TypeError(f'contents must be a byte string, not {type_name(contents)}')
 
     contents_len = len(contents)
     info, consumed = _parse(contents, contents_len)
@@ -130,7 +130,7 @@ def peek(contents):
     """
 
     if not isinstance(contents, byte_cls):
-        raise TypeError('contents must be a byte string, not %s' % type_name(contents))
+        raise TypeError(f'contents must be a byte string, not {type_name(contents)}')
 
     info, consumed = _parse(contents, len(contents))
     return consumed
@@ -185,47 +185,46 @@ def _parse(encoded_data, data_len, pointer=0, lengths_only=False):
     if length_octet >> 7 == 0:
         if lengths_only:
             return (pointer, pointer + (length_octet & 127))
-        contents_end = pointer + (length_octet & 127)
+        else:
+            contents_end = pointer + (length_octet & 127)
+
+    elif length_octets := length_octet & 127:
+        pointer += length_octets
+        contents_end = pointer + int_from_bytes(encoded_data[pointer - length_octets:pointer], signed=False)
+        if lengths_only:
+            return (pointer, contents_end)
 
     else:
-        length_octets = length_octet & 127
-        if length_octets:
-            pointer += length_octets
-            contents_end = pointer + int_from_bytes(encoded_data[pointer - length_octets:pointer], signed=False)
-            if lengths_only:
-                return (pointer, contents_end)
-
-        else:
-            # To properly parse indefinite length values, we need to scan forward
-            # parsing headers until we find a value with a length of zero. If we
-            # just scanned looking for \x00\x00, nested indefinite length values
-            # would not work.
-            contents_end = pointer
-            # Unfortunately we need to understand the contents of the data to
-            # properly scan forward, which bleeds some representation info into
-            # the parser. This condition handles the unused bits byte in
-            # constructed bit strings.
-            if tag == 3:
-                contents_end += 1
-            while contents_end < data_len:
-                sub_header_end, contents_end = _parse(encoded_data, data_len, contents_end, lengths_only=True)
-                if contents_end == sub_header_end and encoded_data[contents_end - 2:contents_end] == b'\x00\x00':
-                    break
-            if lengths_only:
-                return (pointer, contents_end)
-            if contents_end > data_len:
-                raise ValueError(_INSUFFICIENT_DATA_MESSAGE % (contents_end, data_len))
-            return (
-                (
-                    first_octet >> 6,
-                    (first_octet >> 5) & 1,
-                    tag,
-                    encoded_data[start:pointer],
-                    encoded_data[pointer:contents_end - 2],
-                    b'\x00\x00'
-                ),
-                contents_end
-            )
+        # To properly parse indefinite length values, we need to scan forward
+        # parsing headers until we find a value with a length of zero. If we
+        # just scanned looking for \x00\x00, nested indefinite length values
+        # would not work.
+        contents_end = pointer
+        # Unfortunately we need to understand the contents of the data to
+        # properly scan forward, which bleeds some representation info into
+        # the parser. This condition handles the unused bits byte in
+        # constructed bit strings.
+        if tag == 3:
+            contents_end += 1
+        while contents_end < data_len:
+            sub_header_end, contents_end = _parse(encoded_data, data_len, contents_end, lengths_only=True)
+            if contents_end == sub_header_end and encoded_data[contents_end - 2:contents_end] == b'\x00\x00':
+                break
+        if lengths_only:
+            return (pointer, contents_end)
+        if contents_end > data_len:
+            raise ValueError(_INSUFFICIENT_DATA_MESSAGE % (contents_end, data_len))
+        return (
+            (
+                first_octet >> 6,
+                (first_octet >> 5) & 1,
+                tag,
+                encoded_data[start:pointer],
+                encoded_data[pointer:contents_end - 2],
+                b'\x00\x00'
+            ),
+            contents_end
+        )
 
     if contents_end > data_len:
         raise ValueError(_INSUFFICIENT_DATA_MESSAGE % (contents_end, data_len))

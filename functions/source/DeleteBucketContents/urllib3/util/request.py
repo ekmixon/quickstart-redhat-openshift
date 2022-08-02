@@ -131,5 +131,5 @@ def rewind_body(body, body_pos):
         )
     else:
         raise ValueError(
-            "body_pos must be of type integer, instead it was %s." % type(body_pos)
+            f"body_pos must be of type integer, instead it was {type(body_pos)}."
         )

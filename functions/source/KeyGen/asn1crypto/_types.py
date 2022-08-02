@@ -37,10 +37,7 @@ def type_name(value):
         A unicode string of the object's type name
     """
 
-    if inspect.isclass(value):
-        cls = value
-    else:
-        cls = value.__class__
-    if cls.__module__ in set(['builtins', '__builtin__']):
+    cls = value if inspect.isclass(value) else value.__class__
+    if cls.__module__ in {'builtins', '__builtin__'}:
         return cls.__name__
-    return '%s.%s' % (cls.__module__, cls.__name__)
+    return f'{cls.__module__}.{cls.__name__}'

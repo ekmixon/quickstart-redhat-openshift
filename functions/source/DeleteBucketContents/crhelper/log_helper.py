@@ -22,8 +22,8 @@ class JsonFormatter(logging.Formatter):
             'timestamp': '%(asctime)s',
             'level': '%(levelname)s',
             'location': '%(name)s.%(funcName)s:%(lineno)d',
-        }
-        self.format_dict.update(kwargs)
+        } | kwargs
+
         self.default_json_formatter = kwargs.pop(
             'json_default', _json_formatter)
 
@@ -49,12 +49,8 @@ class JsonFormatter(logging.Formatter):
             except (TypeError, ValueError):
                 pass
 
-        if record.exc_info:
-            # Cache the traceback text to avoid converting it multiple times
-            # (it's constant anyway)
-            # from logging.Formatter:format
-            if not record.exc_text:
-                record.exc_text = self.formatException(record.exc_info)
+        if record.exc_info and not record.exc_text:
+            record.exc_text = self.formatException(record.exc_info)
 
         if record.exc_text:
             log_dict['exception'] = record.exc_text

@@ -52,16 +52,16 @@ _variations = [
 
 UNRESERVED_PAT = r"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._!\-~"
 IPV6_PAT = "(?:" + "|".join([x % _subs for x in _variations]) + ")"
-ZONE_ID_PAT = "(?:%25|%)(?:[" + UNRESERVED_PAT + "]|%[a-fA-F0-9]{2})+"
+ZONE_ID_PAT = f"(?:%25|%)(?:[{UNRESERVED_PAT}" + "]|%[a-fA-F0-9]{2})+"
 IPV6_ADDRZ_PAT = r"\[" + IPV6_PAT + r"(?:" + ZONE_ID_PAT + r")?\]"
 REG_NAME_PAT = r"(?:[^\[\]%:/?#]|%[a-fA-F0-9]{2})*"
 TARGET_RE = re.compile(r"^(/[^?#]*)(?:\?([^#]*))?(?:#.*)?$")
 
-IPV4_RE = re.compile("^" + IPV4_PAT + "$")
-IPV6_RE = re.compile("^" + IPV6_PAT + "$")
-IPV6_ADDRZ_RE = re.compile("^" + IPV6_ADDRZ_PAT + "$")
-BRACELESS_IPV6_ADDRZ_RE = re.compile("^" + IPV6_ADDRZ_PAT[2:-2] + "$")
-ZONE_ID_RE = re.compile("(" + ZONE_ID_PAT + r")\]$")
+IPV4_RE = re.compile(f"^{IPV4_PAT}$")
+IPV6_RE = re.compile(f"^{IPV6_PAT}$")
+IPV6_ADDRZ_RE = re.compile(f"^{IPV6_ADDRZ_PAT}$")
+BRACELESS_IPV6_ADDRZ_RE = re.compile(f"^{IPV6_ADDRZ_PAT[2:-2]}$")
+ZONE_ID_RE = re.compile(f"({ZONE_ID_PAT}" + r")\]$")
 
 SUBAUTHORITY_PAT = (u"^(?:(.*)@)?(%s|%s|%s)(?::([0-9]{0,5}))?$") % (
     REG_NAME_PAT,
@@ -99,7 +99,7 @@ class Url(namedtuple("Url", url_attrs)):
         fragment=None,
     ):
         if path and not path.startswith("/"):
-            path = "/" + path
+            path = f"/{path}"
         if scheme is not None:
             scheme = scheme.lower()
         return super(Url, cls).__new__(
@@ -117,16 +117,14 @@ class Url(namedtuple("Url", url_attrs)):
         uri = self.path or "/"
 
         if self.query is not None:
-            uri += "?" + self.query
+            uri += f"?{self.query}"
 
         return uri
 
     @property
     def netloc(self):
         """Network location including host and port"""
-        if self.port:
-            return "%s:%d" % (self.host, self.port)
-        return self.host
+        return "%s:%d" % (self.host, self.port) if self.port else self.host
 
     @property
     def url(self):
@@ -152,19 +150,19 @@ class Url(namedtuple("Url", url_attrs)):
 
         # We use "is not None" we want things to happen with empty strings (or 0 port)
         if scheme is not None:
-            url += scheme + u"://"
+            url += f"{scheme}://"
         if auth is not None:
-            url += auth + u"@"
+            url += f"{auth}@"
         if host is not None:
             url += host
         if port is not None:
-            url += u":" + str(port)
+            url += f":{str(port)}"
         if path is not None:
             url += path
         if query is not None:
-            url += u"?" + query
+            url += f"?{query}"
         if fragment is not None:
-            url += u"#" + fragment
+            url += f"#{fragment}"
 
         return url
 
@@ -227,7 +225,7 @@ def _encode_invalid_chars(component, allowed_chars, encoding="utf-8"):
     is_percent_encoded = percent_encodings == uri_bytes.count(b"%")
     encoded_component = bytearray()
 
-    for i in range(0, len(uri_bytes)):
+    for i in range(len(uri_bytes)):
         # Will return a single character bytestring on both Python 2 & 3
         byte = uri_bytes[i : i + 1]
         byte_ord = ord(byte)
@@ -277,21 +275,20 @@ def _normalize_host(host, scheme):
             host = six.ensure_str(host)
 
         if scheme in NORMALIZABLE_SCHEMES:
-            is_ipv6 = IPV6_ADDRZ_RE.match(host)
-            if is_ipv6:
-                match = ZONE_ID_RE.search(host)
-                if match:
-                    start, end = match.span(1)
-                    zone_id = host[start:end]
-
-                    if zone_id.startswith("%25") and zone_id != "%25":
-                        zone_id = zone_id[3:]
-                    else:
-                        zone_id = zone_id[1:]
-                    zone_id = "%" + _encode_invalid_chars(zone_id, UNRESERVED_CHARS)
-                    return host[:start].lower() + zone_id + host[end:]
-                else:
+            if is_ipv6 := IPV6_ADDRZ_RE.match(host):
+                if not (match := ZONE_ID_RE.search(host)):
                     return host.lower()
+                start, end = match.span(1)
+                zone_id = host[start:end]
+
+                zone_id = (
+                    zone_id[3:]
+                    if zone_id.startswith("%25") and zone_id != "%25"
+                    else zone_id[1:]
+                )
+
+                zone_id = f"%{_encode_invalid_chars(zone_id, UNRESERVED_CHARS)}"
+                return host[:start].lower() + zone_id + host[end:]
             elif not IPV4_RE.match(host):
                 return six.ensure_str(
                     b".".join([_idna_encode(label) for label in host.split(".")])
@@ -300,7 +297,7 @@ def _normalize_host(host, scheme):
 
 
 def _idna_encode(name):
-    if name and any([ord(x) > 128 for x in name]):
+    if name and any(ord(x) > 128 for x in name):
         try:
             import idna
         except ImportError:
@@ -323,7 +320,7 @@ def _encode_target(target):
     target = _encode_invalid_chars(path, PATH_CHARS)
     query = _encode_invalid_chars(query, QUERY_CHARS)
     if query is not None:
-        target += "?" + query
+        target += f"?{query}"
     return target
 
 
@@ -355,7 +352,7 @@ def parse_url(url):
 
     source_url = url
     if not SCHEME_RE.search(url):
-        url = "//" + url
+        url = f"//{url}"
 
     try:
         scheme, authority, path, query, fragment = URI_RE.match(url).groups()
@@ -396,11 +393,7 @@ def parse_url(url):
     # beyond the path in the URL.
     # TODO: Remove this when we break backwards compatibility.
     if not path:
-        if query is not None or fragment is not None:
-            path = ""
-        else:
-            path = None
-
+        path = "" if query is not None or fragment is not None else None
     # Ensure that each part of the URL is a `str` for
     # backwards compatibility.
     if isinstance(url, six.text_type):

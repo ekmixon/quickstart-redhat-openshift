@@ -65,20 +65,17 @@ if sys.version_info <= (3,):
 
         hex_str = '%x' % value
         if len(hex_str) & 1:
-            hex_str = '0' + hex_str
+            hex_str = f'0{hex_str}'
 
         output = hex_str.decode('hex')
 
-        if signed and not is_neg and ord(output[0:1]) & 0x80:
+        if signed and not is_neg and ord(output[:1]) & 0x80:
             output = b'\x00' + output
 
         if width is not None:
-            if is_neg:
-                pad_char = b'\xFF'
-            else:
-                pad_char = b'\x00'
+            pad_char = b'\xFF' if is_neg else b'\x00'
             output = (pad_char * (width - len(output))) + output
-        elif is_neg and ord(output[0:1]) & 0x80 == 0:
+        elif is_neg and ord(output[:1]) & 0x80 == 0:
             output = b'\xFF' + output
 
         return output
@@ -106,7 +103,7 @@ if sys.version_info <= (3,):
             return num
 
         # Check for sign bit and handle two's complement
-        if ord(value[0:1]) & 0x80:
+        if ord(value[:1]) & 0x80:
             bit_len = len(value) * 8
             return num - (1 << bit_len)
 
@@ -288,9 +285,7 @@ class extended_date(object):
         """
 
         output = self._format(format)
-        if py2:
-            return output.encode('utf-8')
-        return output
+        return output.encode('utf-8') if py2 else output
 
     def replace(self, year=None, month=None, day=None):
         """
@@ -308,11 +303,7 @@ class extended_date(object):
         if day is None:
             day = self.day
 
-        if year > 0:
-            cls = date
-        else:
-            cls = extended_date
-
+        cls = date if year > 0 else extended_date
         return cls(
             year,
             month,
@@ -320,10 +311,7 @@ class extended_date(object):
         )
 
     def __str__(self):
-        if py2:
-            return self.__bytes__()
-        else:
-            return self.__unicode__()
+        return self.__bytes__() if py2 else self.__unicode__()
 
     def __bytes__(self):
         return self.__unicode__().encode('utf-8')
@@ -332,9 +320,7 @@ class extended_date(object):
         return self._format('%Y-%m-%d')
 
     def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return False
-        return self.__cmp__(other) == 0
+        return self.__cmp__(other) == 0 if isinstance(other, self.__class__) else False
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -368,9 +354,7 @@ class extended_date(object):
 
         if st < ot:
             return -1
-        if st > ot:
-            return 1
-        return 0
+        return 1 if st > ot else 0
 
     def __lt__(self, other):
         return self.__cmp__(other) < 0
@@ -571,9 +555,7 @@ class extended_datetime(object):
         """
 
         output = self._format(format)
-        if py2:
-            return output.encode('utf-8')
-        return output
+        return output.encode('utf-8') if py2 else output
 
     def replace(self, year=None, month=None, day=None, hour=None, minute=None,
                 second=None, microsecond=None, tzinfo=None):
@@ -602,11 +584,7 @@ class extended_datetime(object):
         if tzinfo is None:
             tzinfo = self.tzinfo
 
-        if year > 0:
-            cls = datetime
-        else:
-            cls = extended_datetime
-
+        cls = datetime if year > 0 else extended_datetime
         return cls(
             year,
             month,
@@ -619,10 +597,7 @@ class extended_datetime(object):
         )
 
     def __str__(self):
-        if py2:
-            return self.__bytes__()
-        else:
-            return self.__unicode__()
+        return self.__bytes__() if py2 else self.__unicode__()
 
     def __bytes__(self):
         return self.__unicode__().encode('utf-8')
@@ -634,9 +609,7 @@ class extended_datetime(object):
         return self._format(format)
 
     def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return False
-        return self.__cmp__(other) == 0
+        return self.__cmp__(other) == 0 if isinstance(other, self.__class__) else False
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -695,9 +668,7 @@ class extended_datetime(object):
 
         if st < ot:
             return -1
-        if st > ot:
-            return 1
-        return 0
+        return 1 if st > ot else 0
 
     def __lt__(self, other):
         return self.__cmp__(other) < 0

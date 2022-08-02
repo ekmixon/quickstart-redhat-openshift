@@ -15,9 +15,7 @@ def guess_content_type(filename, default="application/octet-stream"):
     :param default:
         If no "Content-Type" can be guessed, default to `default`.
     """
-    if filename:
-        return mimetypes.guess_type(filename)[0] or default
-    return default
+    return mimetypes.guess_type(filename)[0] or default if filename else default
 
 
 def format_header_param_rfc2231(name, value):
@@ -38,7 +36,7 @@ def format_header_param_rfc2231(name, value):
     if isinstance(value, six.binary_type):
         value = value.decode("utf-8")
 
-    if not any(ch in value for ch in '"\\\r\n'):
+    if all(ch not in value for ch in '"\\\r\n'):
         result = u'%s="%s"' % (name, value)
         try:
             result.encode("ascii")
@@ -53,7 +51,7 @@ def format_header_param_rfc2231(name, value):
     # encode_rfc2231 accepts an encoded string and returns an ascii-encoded
     # string in Python 2 but accepts and returns unicode strings in Python 3
     value = email.utils.encode_rfc2231(value, "utf-8")
-    value = "%s*=%s" % (name, value)
+    value = f"{name}*={value}"
 
     if six.PY2:  # Python 2:
         value = value.decode("utf-8")
@@ -66,16 +64,11 @@ _HTML5_REPLACEMENTS = {
     # Replace "\" with "\\".
     u"\u005C": u"\u005C\u005C",
     u"\u005C": u"\u005C\u005C",
+} | {
+    six.unichr(cc): u"%{:02X}".format(cc)
+    for cc in range(0x1F + 1)
+    if cc not in (0x1B,)
 }
-
-# All control characters from 0x00 to 0x1F *except* 0x1B.
-_HTML5_REPLACEMENTS.update(
-    {
-        six.unichr(cc): u"%{:02X}".format(cc)
-        for cc in range(0x00, 0x1F + 1)
-        if cc not in (0x1B,)
-    }
-)
 
 
 def _replace_multiple(value, needles_and_replacements):
@@ -215,14 +208,15 @@ class RequestField(object):
             A sequence of (k, v) tuples or a :class:`dict` of (k, v) to format
             as `k1="v1"; k2="v2"; ...`.
         """
-        parts = []
         iterable = header_parts
         if isinstance(header_parts, dict):
             iterable = header_parts.items()
 
-        for name, value in iterable:
-            if value is not None:
-                parts.append(self._render_part(name, value))
+        parts = [
+            self._render_part(name, value)
+            for name, value in iterable
+            if value is not None
+        ]
 
         return u"; ".join(parts)
 
@@ -230,17 +224,16 @@ class RequestField(object):
         """
         Renders the headers for this request field.
         """
-        lines = []
-
         sort_keys = ["Content-Disposition", "Content-Type", "Content-Location"]
-        for sort_key in sort_keys:
-            if self.headers.get(sort_key, False):
-                lines.append(u"%s: %s" % (sort_key, self.headers[sort_key]))
+        lines = [
+            f"{sort_key}: {self.headers[sort_key]}"
+            for sort_key in sort_keys
+            if self.headers.get(sort_key, False)
+        ]
 
         for header_name, header_value in self.headers.items():
-            if header_name not in sort_keys:
-                if header_value:
-                    lines.append(u"%s: %s" % (header_name, header_value))
+            if header_name not in sort_keys and header_value:
+                lines.append(f"{header_name}: {header_value}")
 
         lines.append(u"\r\n")
         return u"\r\n".join(lines)

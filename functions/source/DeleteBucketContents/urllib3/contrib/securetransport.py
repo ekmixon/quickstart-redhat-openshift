@@ -221,9 +221,10 @@ def _read_callback(connection_id, data_buffer, data_length_pointer):
 
         try:
             while read_count < requested_length:
-                if timeout is None or timeout >= 0:
-                    if not util.wait_for_read(base_socket, timeout):
-                        raise socket.error(errno.EAGAIN, "timed out")
+                if (
+                    timeout is None or timeout >= 0
+                ) and not util.wait_for_read(base_socket, timeout):
+                    raise socket.error(errno.EAGAIN, "timed out")
 
                 remaining = requested_length - read_count
                 buffer = (ctypes.c_char * remaining).from_address(
@@ -235,21 +236,18 @@ def _read_callback(connection_id, data_buffer, data_length_pointer):
                     if not read_count:
                         return SecurityConst.errSSLClosedGraceful
                     break
-        except (socket.error) as e:
+        except socket.error as e:
             error = e.errno
 
             if error is not None and error != errno.EAGAIN:
                 data_length_pointer[0] = read_count
-                if error == errno.ECONNRESET or error == errno.EPIPE:
+                if error in [errno.ECONNRESET, errno.EPIPE]:
                     return SecurityConst.errSSLClosedAbort
                 raise
 
         data_length_pointer[0] = read_count
 
-        if read_count != requested_length:
-            return SecurityConst.errSSLWouldBlock
-
-        return 0
+        return SecurityConst.errSSLWouldBlock if read_count != requested_length else 0
     except Exception as e:
         if wrapped_socket is not None:
             wrapped_socket._exception = e
@@ -277,30 +275,28 @@ def _write_callback(connection_id, data_buffer, data_length_pointer):
 
         try:
             while sent < bytes_to_write:
-                if timeout is None or timeout >= 0:
-                    if not util.wait_for_write(base_socket, timeout):
-                        raise socket.error(errno.EAGAIN, "timed out")
+                if (
+                    timeout is None or timeout >= 0
+                ) and not util.wait_for_write(base_socket, timeout):
+                    raise socket.error(errno.EAGAIN, "timed out")
                 chunk_sent = base_socket.send(data)
                 sent += chunk_sent
 
                 # This has some needless copying here, but I'm not sure there's
                 # much value in optimising this data path.
                 data = data[chunk_sent:]
-        except (socket.error) as e:
+        except socket.error as e:
             error = e.errno
 
             if error is not None and error != errno.EAGAIN:
                 data_length_pointer[0] = sent
-                if error == errno.ECONNRESET or error == errno.EPIPE:
+                if error in [errno.ECONNRESET, errno.EPIPE]:
                     return SecurityConst.errSSLClosedAbort
                 raise
 
         data_length_pointer[0] = sent
 
-        if sent != bytes_to_write:
-            return SecurityConst.errSSLWouldBlock
-
-        return 0
+        return SecurityConst.errSSLWouldBlock if sent != bytes_to_write else 0
     except Exception as e:
         if wrapped_socket is not None:
             wrapped_socket._exception = e
@@ -533,8 +529,7 @@ class WrappedSocket(object):
     def recv(self, bufsiz):
         buffer = ctypes.create_string_buffer(bufsiz)
         bytes_read = self.recv_into(buffer, bufsiz)
-        data = buffer[:bytes_read]
-        return data
+        return buffer[:bytes_read]
 
     def recv_into(self, buffer, nbytes=None):
         # Read short on EOF.
@@ -792,7 +787,7 @@ class SecureTransportContext(object):
 
     @verify_mode.setter
     def verify_mode(self, value):
-        self._verify = True if value == ssl.CERT_REQUIRED else False
+        self._verify = value == ssl.CERT_REQUIRED
 
     def set_default_verify_paths(self):
         # So, this has to do something a bit weird. Specifically, what it does

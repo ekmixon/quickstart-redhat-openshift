@@ -19,9 +19,12 @@ def boto_throttle_backoff(boto_method, max_retries=10, backoff_multiplier=2, **k
             if 'ThrottlingException' in str(e) or 'VolumeInUse' in str(e):
                 retry += 1
                 if retry > max_retries:
-                    print("Maximum retries of %s reached" % str(max_retries))
+                    print(f"Maximum retries of {str(max_retries)} reached")
                     raise
-                print("hit an api throttle, or eventual consistency error, waiting for %s seconds before retrying" % str(retry * backoff_multiplier))
+                print(
+                    f"hit an api throttle, or eventual consistency error, waiting for {str(retry * backoff_multiplier)} seconds before retrying"
+                )
+
                 time.sleep(retry * backoff_multiplier)
             else:
                 raise
@@ -29,7 +32,7 @@ def boto_throttle_backoff(boto_method, max_retries=10, backoff_multiplier=2, **k
 
 
 def handler(event, context):
-    print('Received event: %s' % json.dumps(event))
+    print(f'Received event: {json.dumps(event)}')
     status = cfnresponse.SUCCESS
     physical_resource_id = 'PVCleanup'
     data = {}
@@ -37,22 +40,24 @@ def handler(event, context):
     try:
         if event['RequestType'] == 'Delete':
             print('Removing any orphaned EBS volumes...')
-            tag_name = 'tag:kubernetes.io/cluster/%s' % event['ResourceProperties']['ClusterId']
+            tag_name = f"tag:kubernetes.io/cluster/{event['ResourceProperties']['ClusterId']}"
+
             response = boto_throttle_backoff(
                 ec2_client.describe_volumes,
                 Filters=[{'Name': tag_name, 'Values': ['owned']}]
             )['Volumes']
             for volume in response:
-                print('deleting volume %s' % volume['VolumeId'])
+                print(f"deleting volume {volume['VolumeId']}")
                 boto_throttle_backoff(ec2_client.delete_volume, VolumeId=volume['VolumeId'])
     except Exception as e:
-        logging.error('Exception: %s' % e, exc_info=True)
+        logging.error(f'Exception: {e}', exc_info=True)
         reason = str(e)
         status = cfnresponse.FAILED
     finally:
         if event['RequestType'] == 'Delete':
             try:
-                wait_message = 'waiting for events for request_id %s to propagate to cloudwatch...' % context.aws_request_id
+                wait_message = f'waiting for events for request_id {context.aws_request_id} to propagate to cloudwatch...'
+
                 while not logs_client.filter_log_events(
                         logGroupName=context.log_group_name,
                         logStreamNames=[context.log_stream_name],
@@ -61,6 +66,6 @@ def handler(event, context):
                     print(wait_message)
                     time.sleep(5)
             except Exception as e:
-                logging.error('Exception: %s' % e, exc_info=True)
+                logging.error(f'Exception: {e}', exc_info=True)
                 time.sleep(120)
         cfnresponse.send(event, context, status, data, physical_resource_id, reason)

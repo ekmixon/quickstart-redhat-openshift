@@ -176,7 +176,7 @@ class TestCfnResource(unittest.TestCase):
         self.assertEqual(orig_pid, '')
         c._cfn_response(event)
         c._send.assert_called_once()
-        print("RID: [%s]" % [c.PhysicalResourceId])
+        print(f"RID: [{[c.PhysicalResourceId]}]")
         self.assertEqual(True, c.PhysicalResourceId.startswith('test-stack-id_TestResourceId_'))
 
         c._send = Mock()
@@ -328,6 +328,6 @@ class TestCfnResource(unittest.TestCase):
             pass
 
         for f in ["create", "update", "delete", "poll_create", "poll_update", "poll_delete"]:
-            self.assertEqual(None, getattr(c, "_%s_func" % f))
+            self.assertEqual(None, getattr(c, f"_{f}_func"))
             getattr(c, f)(func)
-            self.assertEqual(func, getattr(c, "_%s_func" % f))
+            self.assertEqual(func, getattr(c, f"_{f}_func"))

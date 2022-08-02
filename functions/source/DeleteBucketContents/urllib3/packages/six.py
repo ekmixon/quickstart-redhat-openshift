@@ -20,6 +20,7 @@
 
 """Utilities for writing code that runs on Python 2 and 3"""
 
+
 from __future__ import absolute_import
 
 import functools
@@ -35,7 +36,7 @@ __version__ = "1.12.0"
 # Useful for very coarse version differentiation.
 PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
-PY34 = sys.version_info[0:2] >= (3, 4)
+PY34 = sys.version_info[:2] >= (3, 4)
 
 if PY3:
     string_types = (str,)
@@ -141,10 +142,7 @@ class MovedAttribute(_LazyDescr):
                 new_mod = name
             self.mod = new_mod
             if new_attr is None:
-                if old_attr is None:
-                    new_attr = name
-                else:
-                    new_attr = old_attr
+                new_attr = name if old_attr is None else old_attr
             self.attr = new_attr
         else:
             self.mod = old_mod
@@ -172,21 +170,19 @@ class _SixMetaPathImporter(object):
 
     def _add_module(self, mod, *fullnames):
         for fullname in fullnames:
-            self.known_modules[self.name + "." + fullname] = mod
+            self.known_modules[f"{self.name}.{fullname}"] = mod
 
     def _get_module(self, fullname):
-        return self.known_modules[self.name + "." + fullname]
+        return self.known_modules[f"{self.name}.{fullname}"]
 
     def find_module(self, fullname, path=None):
-        if fullname in self.known_modules:
-            return self
-        return None
+        return self if fullname in self.known_modules else None
 
     def __get_module(self, fullname):
         try:
             return self.known_modules[fullname]
         except KeyError:
-            raise ImportError("This loader does not know module " + fullname)
+            raise ImportError(f"This loader does not know module {fullname}")
 
     def load_module(self, fullname):
         try:
@@ -245,7 +241,10 @@ _moved_attributes = [
     MovedAttribute("getoutput", "commands", "subprocess"),
     MovedAttribute("range", "__builtin__", "builtins", "xrange", "range"),
     MovedAttribute(
-        "reload_module", "__builtin__", "importlib" if PY34 else "imp", "reload"
+        "reload_module",
+        "__builtin__",
+        "importlib" if PY34 else "imp",
+        "reload",
     ),
     MovedAttribute("reduce", "__builtin__", "functools"),
     MovedAttribute("shlex_quote", "pipes", "shlex", "quote"),
@@ -270,9 +269,13 @@ _moved_attributes = [
     MovedModule("http_client", "httplib", "http.client"),
     MovedModule("email_mime_base", "email.MIMEBase", "email.mime.base"),
     MovedModule("email_mime_image", "email.MIMEImage", "email.mime.image"),
-    MovedModule("email_mime_multipart", "email.MIMEMultipart", "email.mime.multipart"),
     MovedModule(
-        "email_mime_nonmultipart", "email.MIMENonMultipart", "email.mime.nonmultipart"
+        "email_mime_multipart", "email.MIMEMultipart", "email.mime.multipart"
+    ),
+    MovedModule(
+        "email_mime_nonmultipart",
+        "email.MIMENonMultipart",
+        "email.mime.nonmultipart",
     ),
     MovedModule("email_mime_text", "email.MIMEText", "email.mime.text"),
     MovedModule("BaseHTTPServer", "BaseHTTPServer", "http.server"),
@@ -286,25 +289,42 @@ _moved_attributes = [
     MovedModule("tkinter", "Tkinter"),
     MovedModule("tkinter_dialog", "Dialog", "tkinter.dialog"),
     MovedModule("tkinter_filedialog", "FileDialog", "tkinter.filedialog"),
-    MovedModule("tkinter_scrolledtext", "ScrolledText", "tkinter.scrolledtext"),
-    MovedModule("tkinter_simpledialog", "SimpleDialog", "tkinter.simpledialog"),
+    MovedModule(
+        "tkinter_scrolledtext", "ScrolledText", "tkinter.scrolledtext"
+    ),
+    MovedModule(
+        "tkinter_simpledialog", "SimpleDialog", "tkinter.simpledialog"
+    ),
     MovedModule("tkinter_tix", "Tix", "tkinter.tix"),
     MovedModule("tkinter_ttk", "ttk", "tkinter.ttk"),
     MovedModule("tkinter_constants", "Tkconstants", "tkinter.constants"),
     MovedModule("tkinter_dnd", "Tkdnd", "tkinter.dnd"),
-    MovedModule("tkinter_colorchooser", "tkColorChooser", "tkinter.colorchooser"),
-    MovedModule("tkinter_commondialog", "tkCommonDialog", "tkinter.commondialog"),
+    MovedModule(
+        "tkinter_colorchooser", "tkColorChooser", "tkinter.colorchooser"
+    ),
+    MovedModule(
+        "tkinter_commondialog", "tkCommonDialog", "tkinter.commondialog"
+    ),
     MovedModule("tkinter_tkfiledialog", "tkFileDialog", "tkinter.filedialog"),
     MovedModule("tkinter_font", "tkFont", "tkinter.font"),
     MovedModule("tkinter_messagebox", "tkMessageBox", "tkinter.messagebox"),
-    MovedModule("tkinter_tksimpledialog", "tkSimpleDialog", "tkinter.simpledialog"),
-    MovedModule("urllib_parse", __name__ + ".moves.urllib_parse", "urllib.parse"),
-    MovedModule("urllib_error", __name__ + ".moves.urllib_error", "urllib.error"),
-    MovedModule("urllib", __name__ + ".moves.urllib", __name__ + ".moves.urllib"),
+    MovedModule(
+        "tkinter_tksimpledialog", "tkSimpleDialog", "tkinter.simpledialog"
+    ),
+    MovedModule(
+        "urllib_parse", f"{__name__}.moves.urllib_parse", "urllib.parse"
+    ),
+    MovedModule(
+        "urllib_error", f"{__name__}.moves.urllib_error", "urllib.error"
+    ),
+    MovedModule(
+        "urllib", f"{__name__}.moves.urllib", f"{__name__}.moves.urllib"
+    ),
     MovedModule("urllib_robotparser", "robotparser", "urllib.robotparser"),
     MovedModule("xmlrpc_client", "xmlrpclib", "xmlrpc.client"),
     MovedModule("xmlrpc_server", "SimpleXMLRPCServer", "xmlrpc.server"),
 ]
+
 # Add windows specific modules.
 if sys.platform == "win32":
     _moved_attributes += [MovedModule("winreg", "_winreg")]
@@ -312,20 +332,18 @@ if sys.platform == "win32":
 for attr in _moved_attributes:
     setattr(_MovedItems, attr.name, attr)
     if isinstance(attr, MovedModule):
-        _importer._add_module(attr, "moves." + attr.name)
+        _importer._add_module(attr, f"moves.{attr.name}")
 del attr
 
 _MovedItems._moved_attributes = _moved_attributes
 
-moves = _MovedItems(__name__ + ".moves")
+moves = _MovedItems(f"{__name__}.moves")
 _importer._add_module(moves, "moves")
 
 
 class Module_six_moves_urllib_parse(_LazyModule):
 
     """Lazy loading of moved objects in six.moves.urllib_parse"""
-
-
 _urllib_parse_moved_attributes = [
     MovedAttribute("ParseResult", "urlparse", "urllib.parse"),
     MovedAttribute("SplitResult", "urlparse", "urllib.parse"),
@@ -362,17 +380,16 @@ del attr
 Module_six_moves_urllib_parse._moved_attributes = _urllib_parse_moved_attributes
 
 _importer._add_module(
-    Module_six_moves_urllib_parse(__name__ + ".moves.urllib_parse"),
+    Module_six_moves_urllib_parse(f"{__name__}.moves.urllib_parse"),
     "moves.urllib_parse",
     "moves.urllib.parse",
 )
 
 
+
 class Module_six_moves_urllib_error(_LazyModule):
 
     """Lazy loading of moved objects in six.moves.urllib_error"""
-
-
 _urllib_error_moved_attributes = [
     MovedAttribute("URLError", "urllib2", "urllib.error"),
     MovedAttribute("HTTPError", "urllib2", "urllib.error"),
@@ -385,17 +402,16 @@ del attr
 Module_six_moves_urllib_error._moved_attributes = _urllib_error_moved_attributes
 
 _importer._add_module(
-    Module_six_moves_urllib_error(__name__ + ".moves.urllib.error"),
+    Module_six_moves_urllib_error(f"{__name__}.moves.urllib.error"),
     "moves.urllib_error",
     "moves.urllib.error",
 )
 
 
+
 class Module_six_moves_urllib_request(_LazyModule):
 
     """Lazy loading of moved objects in six.moves.urllib_request"""
-
-
 _urllib_request_moved_attributes = [
     MovedAttribute("urlopen", "urllib2", "urllib.request"),
     MovedAttribute("install_opener", "urllib2", "urllib.request"),
@@ -440,17 +456,16 @@ del attr
 Module_six_moves_urllib_request._moved_attributes = _urllib_request_moved_attributes
 
 _importer._add_module(
-    Module_six_moves_urllib_request(__name__ + ".moves.urllib.request"),
+    Module_six_moves_urllib_request(f"{__name__}.moves.urllib.request"),
     "moves.urllib_request",
     "moves.urllib.request",
 )
 
 
+
 class Module_six_moves_urllib_response(_LazyModule):
 
     """Lazy loading of moved objects in six.moves.urllib_response"""
-
-
 _urllib_response_moved_attributes = [
     MovedAttribute("addbase", "urllib", "urllib.response"),
     MovedAttribute("addclosehook", "urllib", "urllib.response"),
@@ -464,17 +479,16 @@ del attr
 Module_six_moves_urllib_response._moved_attributes = _urllib_response_moved_attributes
 
 _importer._add_module(
-    Module_six_moves_urllib_response(__name__ + ".moves.urllib.response"),
+    Module_six_moves_urllib_response(f"{__name__}.moves.urllib.response"),
     "moves.urllib_response",
     "moves.urllib.response",
 )
 
 
+
 class Module_six_moves_urllib_robotparser(_LazyModule):
 
     """Lazy loading of moved objects in six.moves.urllib_robotparser"""
-
-
 _urllib_robotparser_moved_attributes = [
     MovedAttribute("RobotFileParser", "robotparser", "urllib.robotparser")
 ]
@@ -487,7 +501,9 @@ Module_six_moves_urllib_robotparser._moved_attributes = (
 )
 
 _importer._add_module(
-    Module_six_moves_urllib_robotparser(__name__ + ".moves.urllib.robotparser"),
+    Module_six_moves_urllib_robotparser(
+        f"{__name__}.moves.urllib.robotparser"
+    ),
     "moves.urllib_robotparser",
     "moves.urllib.robotparser",
 )
@@ -509,7 +525,7 @@ class Module_six_moves_urllib(types.ModuleType):
 
 
 _importer._add_module(
-    Module_six_moves_urllib(__name__ + ".moves.urllib"), "moves.urllib"
+    Module_six_moves_urllib(f"{__name__}.moves.urllib"), "moves.urllib"
 )
 
 

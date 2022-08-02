@@ -80,7 +80,7 @@ class CfnResource(object):
             else:
                 logger.debug("enabling send_response")
                 self._send_response = True
-            logger.debug("_send_response: %s" % self._send_response)
+            logger.debug(f"_send_response: {self._send_response}")
             if self._send_response:
                 if self.RequestType == 'Delete':
                     self._wait_for_cwlogs()
@@ -94,8 +94,7 @@ class CfnResource(object):
 
     def _wait_for_cwlogs(self, sleep=sleep):
         sleep_time = int(self._context.get_remaining_time_in_millis() / 1000) - 15
-        if sleep_time > 120:
-            sleep_time = 120
+        sleep_time = min(sleep_time, 120)
         if sleep_time > 1:
             sleep(sleep_time)
 
@@ -131,15 +130,15 @@ class CfnResource(object):
 
     def _polling_init(self, event):
         # Setup polling on initial request
-        logger.debug("pid1: %s" % self.PhysicalResourceId)
+        logger.debug(f"pid1: {self.PhysicalResourceId}")
         if 'CrHelperPoll' not in event.keys() and self.Status != FAILED:
             logger.info("Setting up polling")
             self.Data["PhysicalResourceId"] = self.PhysicalResourceId
             self._setup_polling()
             self.PhysicalResourceId = None
-            logger.debug("pid2: %s" % self.PhysicalResourceId)
+            logger.debug(f"pid2: {self.PhysicalResourceId}")
         # if physical id is set, or there was a failure then we're done
-        logger.debug("pid3: %s" % self.PhysicalResourceId)
+        logger.debug(f"pid3: {self.PhysicalResourceId}")
         if self.PhysicalResourceId or self.Status == FAILED:
             logger.info("Polling complete, removing cwe schedule")
             self._remove_polling()
@@ -160,7 +159,7 @@ class CfnResource(object):
         self._send()
 
     def _poll_enabled(self):
-        return getattr(self, "_poll_{}_func".format(self._event['RequestType'].lower()))
+        return getattr(self, f"_poll_{self._event['RequestType'].lower()}_func")
 
     def create(self, func):
         self._create_func = func
@@ -206,14 +205,15 @@ class CfnResource(object):
     def _get_func(self):
         request_type = "_{}_func"
         if "CrHelperPoll" in self._event.keys():
-            request_type = "_poll" + request_type
+            request_type = f"_poll{request_type}"
         return getattr(self, request_type.format(self._event['RequestType'].lower()))
 
     def _send(self, status=None, reason="", send_response=_send_response):
-        if len(str(str(self.Reason))) > 256:
-            self.Reason = "ERROR: (truncated) " + str(self.Reason)[len(str(self.Reason)) - 240:]
+        if len(str(self.Reason)) > 256:
+            self.Reason = f"ERROR: (truncated) {str(self.Reason)[len(str(self.Reason)) - 240:]}"
+
         if len(str(reason)) > 256:
-            reason = "ERROR: (truncated) " + str(reason)[len(str(reason)) - 240:]
+            reason = f"ERROR: (truncated) {str(reason)[len(str(reason)) - 240:]}"
         response_body = {
             'Status': self.Status,
             'PhysicalResourceId': str(self.PhysicalResourceId),
@@ -224,7 +224,7 @@ class CfnResource(object):
             'Data': self.Data,
         }
         if status:
-            response_body.update({'Status': status, 'Reason': reason})
+            response_body |= {'Status': status, 'Reason': reason}
         send_response(self._response_url, response_body)
 
     def init_failure(self, error):
@@ -254,9 +254,10 @@ class CfnResource(object):
     def _put_rule(self):
         response = self._events_client.put_rule(
             Name=self._event['LogicalResourceId'] + self._rand_string(8),
-            ScheduleExpression='rate({} minutes)'.format(self._polling_interval),
+            ScheduleExpression=f'rate({self._polling_interval} minutes)',
             State='ENABLED',
         )
+
         return response["RuleArn"]
 
     def _put_targets(self, func_name):
@@ -270,10 +271,10 @@ class CfnResource(object):
             Targets=[
                 {
                     'Id': '1',
-                    'Arn': 'arn:%s:lambda:%s:%s:function:%s' % (partition, region, account_id, func_name),
-                    'Input': json.dumps(self._event)
+                    'Arn': f'arn:{partition}:lambda:{region}:{account_id}:function:{func_name}',
+                    'Input': json.dumps(self._event),
                 }
-            ]
+            ],
         )
 
     def _remove_targets(self, rule_arn):

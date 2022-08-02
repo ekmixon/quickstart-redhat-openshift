@@ -19,13 +19,16 @@ def generate_pem(keysize):
 
 
 def send_response(event, context, response_status, response_data):
-    response_body = {'Status': response_status,
-                    'StackId': event['StackId'],
-                    'RequestId': event['RequestId'],
-                    'PhysicalResourceId': context.log_stream_name,
-                    'Reason': 'For details see AWS CloudWatch LogStream: ' + context.log_stream_name,
-                    'LogicalResourceId': event['LogicalResourceId'],
-                    'Data': response_data}
+    response_body = {
+        'Status': response_status,
+        'StackId': event['StackId'],
+        'RequestId': event['RequestId'],
+        'PhysicalResourceId': context.log_stream_name,
+        'Reason': f'For details see AWS CloudWatch LogStream: {context.log_stream_name}',
+        'LogicalResourceId': event['LogicalResourceId'],
+        'Data': response_data,
+    }
+
     request = requests.put(event['ResponseURL'], data=json.dumps(response_body))
     if request.status_code != 200:
         print(request.text)

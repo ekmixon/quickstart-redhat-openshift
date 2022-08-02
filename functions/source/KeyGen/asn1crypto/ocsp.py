@@ -101,7 +101,7 @@ class Request(Sequence):
 
         for extension in self['single_request_extensions']:
             name = extension['extn_id'].native
-            attribute_name = '_%s_value' % name
+            attribute_name = f'_{name}_value'
             if hasattr(self, attribute_name):
                 setattr(self, attribute_name, extension['extn_value'].parsed)
             if extension['critical'].native:
@@ -233,7 +233,7 @@ class OCSPRequest(Sequence):
 
         for extension in self['tbs_request']['request_extensions']:
             name = extension['extn_id'].native
-            attribute_name = '_%s_value' % name
+            attribute_name = f'_{name}_value'
             if hasattr(self, attribute_name):
                 setattr(self, attribute_name, extension['extn_value'].parsed)
             if extension['critical'].native:
@@ -405,7 +405,7 @@ class SingleResponse(Sequence):
 
         for extension in self['single_extensions']:
             name = extension['extn_id'].native
-            attribute_name = '_%s_value' % name
+            attribute_name = f'_{name}_value'
             if hasattr(self, attribute_name):
                 setattr(self, attribute_name, extension['extn_value'].parsed)
             if extension['critical'].native:
@@ -579,7 +579,7 @@ class OCSPResponse(Sequence):
 
         for extension in self['response_bytes']['response'].parsed['tbs_response_data']['response_extensions']:
             name = extension['extn_id'].native
-            attribute_name = '_%s_value' % name
+            attribute_name = f'_{name}_value'
             if hasattr(self, attribute_name):
                 setattr(self, attribute_name, extension['extn_value'].parsed)
             if extension['critical'].native:
